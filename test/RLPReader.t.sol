@@ -69,7 +69,7 @@ contract RLPReader_readBytes_Test is Test {
         uint lengthLengthValue;
 
         for (uint i = 31; i < 32; i--) { //* The i < 32 part is super contraintuitive at first, but I understand why because the uint nature
-            //I check the first non zero value to have the lenght of the _input.length
+            //Check the first non zero value to have the lenght of the _input.length
             if (inputLengthBytes[i] > 0) {
                 lengthLengthValue = i + 1;
                 break;
@@ -85,5 +85,51 @@ contract RLPReader_readBytes_Test is Test {
 
         // Assert that reading the encoded input gives us our input
         assertEq(RLPReader.readBytes(encodedInput), _input);
+    }
+
+    //Empty list
+    function test_readList_empty_succeeds() external pure {
+        // Check if 0xc0 decodes as an empty bytes array
+        bytes[] memory result = RLPReader.readList(hex"c0"); //? bytes[] is a dynamic array of bytes dynamic arrays, right?
+        bytes[] memory emptyList = new bytes[](0);
+        assertEq(result, emptyList);
+    }
+
+    //List with 1 element less than 55 bytes long
+    function test_readList_one_element_1to55bytes_succeeds(bytes[] memory _input) external pure {
+        //Force to one element array with less than 55 bytes long element values
+        vm.assume(_input.length == 1);
+        vm.assume(_input[0].length < 55);
+
+        //Encoding single element of the array
+        bytes memory elementLengthByte = abi.encodePacked(bytes1(uint8(0x80 + _input[0].length)));
+        bytes memory payload = bytes.concat(elementLengthByte, _input[0]);
+
+        // 0xc0 + len(payload), payload
+        bytes memory lengthPayload = abi.encodePacked(bytes1(uint8(0xc0 + payload.length)));
+        bytes memory encodedInput = bytes.concat(lengthPayload, payload);
+
+        // Assert that reading the encoded input gives us our input
+        assertEq(RLPReader.readList(encodedInput), _input);
+    }
+
+    //List with 2 elements less than 55 bytes long
+    function test_readList_two_element_1to55bytes_succeeds(bytes[] memory _input) external pure {
+        //Force to two elements array with less than 55 bytes long elements value
+        vm.assume(_input.length == 2);
+        vm.assume(_input[0].length < 55);
+        vm.assume(_input[1].length < 55); //* I don't like to hardcode things but I couldn't find a better option
+
+        //Encoding elements of the array
+        bytes memory firstElementLengthByte = abi.encodePacked(bytes1(uint8(0x80 + _input[0].length)));
+        bytes memory secondElementLengthByte = abi.encodePacked(bytes1(uint8(0x80 + _input[1].length)));
+        bytes memory payload = bytes.concat(firstElementLengthByte, _input[0], secondElementLengthByte, _input[1]);
+
+        // 0xc0 + len(payload), payload
+        bytes memory lengthPayload = abi.encodePacked(bytes1(uint8(0xc0 + payload.length)));
+        bytes memory encodedInput = bytes.concat(lengthPayload, payload);
+
+        // Assert that reading the encoded input gives us our input
+        assertEq(RLPReader.readList(encodedInput), _input);
     }
 }

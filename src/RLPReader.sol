@@ -5,4 +5,8 @@ library RLPReader {
     function readBytes(bytes memory _in) internal pure returns (bytes memory) {
         
     }
+
+    function readList(bytes memory _in) internal pure returns (bytes[] memory) {
+        
+    }
 }
