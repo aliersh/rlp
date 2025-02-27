@@ -99,7 +99,7 @@ contract RLPReader_readBytes_Test is Test {
     function test_readList_one_element_1to55bytes_succeeds(bytes[] memory _input) external pure {
         //Force to one element array with less than 55 bytes long element values
         vm.assume(_input.length == 1);
-        vm.assume(_input[0].length < 55);
+        vm.assume(_input[0].length < 55); //? vm.assume right? does it make our life easier? or am I misusing it?
 
         //Encoding single element of the array
         bytes memory elementLengthByte = abi.encodePacked(bytes1(uint8(0x80 + _input[0].length)));
@@ -118,7 +118,7 @@ contract RLPReader_readBytes_Test is Test {
         //Force to two elements array with less than 55 bytes long elements value
         vm.assume(_input.length == 2);
         vm.assume(_input[0].length < 55);
-        vm.assume(_input[1].length < 55); //* I don't like to hardcode things but I couldn't find a better option
+        vm.assume(_input[1].length < 55); //* I don't like to hardcode things but a for loop looks too cumbersome
 
         //Encoding elements of the array
         bytes memory firstElementLengthByte = abi.encodePacked(bytes1(uint8(0x80 + _input[0].length)));
@@ -126,6 +126,26 @@ contract RLPReader_readBytes_Test is Test {
         bytes memory payload = bytes.concat(firstElementLengthByte, _input[0], secondElementLengthByte, _input[1]);
 
         // 0xc0 + len(payload), payload
+        bytes memory lengthPayload = abi.encodePacked(bytes1(uint8(0xc0 + payload.length)));
+        bytes memory encodedInput = bytes.concat(lengthPayload, payload);
+
+        // Assert that reading the encoded input gives us our input
+        assertEq(RLPReader.readList(encodedInput), _input);
+    }
+
+    //List with 10 elements less than 55 bytes long
+    function test_readList_ten_element_1to55bytes_succeeds(bytes[] memory _input) external pure {
+        vm.assume(_input.length == 10);
+
+        // the loop is concatenanting the length bytes in each loop step 
+        bytes memory payload;
+
+        for (uint i = 0; i < 10; i++) {
+            vm.assume(_input[i].length < 55); //* I'm assuming this works, actually I'm assuming that all the vm.assume thing works lol
+            bytes memory elementLengthByte = abi.encodePacked(bytes1(uint8(0x80 + _input[i].length)));
+            payload = bytes.concat(payload, elementLengthByte, _input[i]); //TODO: I have to ensure the payload is < 55?
+        }
+
         bytes memory lengthPayload = abi.encodePacked(bytes1(uint8(0xc0 + payload.length)));
         bytes memory encodedInput = bytes.concat(lengthPayload, payload);
 
