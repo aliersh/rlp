@@ -51,36 +51,34 @@ contract RLPReader_readBytes_Test is Test {
             _input = abi.encodePacked(keccak256(_input), keccak256(_input));
         }
 
-        // What's the algorithm for this?
-        // Broadly:
-        // - The byte furthest to the left that is non-zero tells us how long it should be
-        // -- Example: 0x0000001234 
-        // -- Example: 0x0000120034
-        // To find the length, we must find the non-zero byte that is furthest to the left
-        // Once we have the length:
-        // Copy over the bytes, starting from the index of the non-zero byte that is furthest to the left
-        // Starter algorithm:
-        // 1. Figure out the length by finding the index of the non-zero byte furthest to the left
-        // 2. Make a bytes object with that length
-        // 3. Go back and copy the bytes into the bytes object, starting from the index of that left-most byte //? Why do you need the bytes themselves? It is not enough having just the length?
-
         // Convert the uint hex value of _input.length to bytes32 for an easy iteration
         bytes32 inputLengthBytes = bytes32(_input.length);
-        uint lengthLengthValue;
 
-        for (uint i = 31; i < 32; i--) { //* The i < 32 part is super contraintuitive at first, but I understand why because the uint nature
-            //Check the first non zero value to have the lenght of the _input.length
+        // Iterate from left to right until we find the first non-zero value
+        uint8 lengthLength = 0;
+        for (uint8 i = 0; i < 32; i++) {
             if (inputLengthBytes[i] > 0) {
-                lengthLengthValue = i + 1;
+                lengthLength = 32 - i;
                 break;
             }
-            if (i == 0) break; // To stop the loop
         }
+        
+        // Want to create a bytes where length is equal to lengthLength
+        // Here we're storing directly into the content of lengthBytes
+        bytes memory lengthBytes = new bytes(lengthLength); // empty, but it's the right size!
+        assembly {
+            // Equivalent to inputLengthBytes << (32 - lengthLength) * 8
+            mstore(add(lengthBytes, 32), shl(mul(sub(32, lengthLength), 8), inputLengthBytes))
+        }
+
+        // Less efficient but it works
+        // for (uint8 i = 0; i < lengthLength; i++) {
+        //    lengthBytes[i] = inputLengthBytes[32 - lengthLength + i];
+        // }
 
         // Spec says that for values longer than 55 bytes, the encoding is:
         // 0xb7 + len(len(value)), len(value), value
-        bytes memory lenghtLenghtBytes = abi.encodePacked(bytes1(uint8(0xb7 + lengthLengthValue)));
-        bytes memory lengthBytes = abi.encodePacked(_input.length);
+        bytes memory lenghtLenghtBytes = abi.encodePacked(bytes1(uint8(0xb7 + lengthLength))); // correct!
         bytes memory encodedInput = bytes.concat(lenghtLenghtBytes, lengthBytes, _input);
 
         // Assert that reading the encoded input gives us our input
@@ -90,47 +88,69 @@ contract RLPReader_readBytes_Test is Test {
     //Empty list
     function test_readList_empty_succeeds() external pure {
         // Check if 0xc0 decodes as an empty bytes array
-        bytes[] memory result = RLPReader.readList(hex"c0"); //? bytes[] is a dynamic array of bytes dynamic arrays, right?
+        bytes[] memory result = RLPReader.readList(hex"c0");
         bytes[] memory emptyList = new bytes[](0);
+
         assertEq(result, emptyList);
     }
 
     //List with 1 element less than 55 bytes long
-    function test_readList_one_element_1to55bytes_succeeds(bytes[] memory _input) external pure {
-        //Force to one element array with less than 55 bytes long element values
-        vm.assume(_input.length == 1);
-        vm.assume(_input[0].length < 55); //? vm.assume right? does it make our life easier? or am I misusing it?
+    function test_readList_one_element_1to55bytes_succeeds(bytes memory _input) external pure {
+        // We don't care about values longer than 54 bytes, we can safely clobber the memory here.
+        if (_input.length > 54) {
+            assembly {
+                mstore(_input, 54)
+            }
+        }
 
-        //Encoding single element of the array
-        bytes memory elementLengthByte = abi.encodePacked(bytes1(uint8(0x80 + _input[0].length)));
-        bytes memory payload = bytes.concat(elementLengthByte, _input[0]);
+        // Encoding single element of the array
+        bytes memory elementLengthByte = abi.encodePacked(bytes1(uint8(0x80 + _input.length)));
+        bytes memory payload = bytes.concat(elementLengthByte, _input);
 
         // 0xc0 + len(payload), payload
         bytes memory lengthPayload = abi.encodePacked(bytes1(uint8(0xc0 + payload.length)));
         bytes memory encodedInput = bytes.concat(lengthPayload, payload);
 
-        // Assert that reading the encoded input gives us our input
-        assertEq(RLPReader.readList(encodedInput), _input);
+        // Generate our expected output
+        bytes[] memory expectedOutput = new bytes[](1);
+        expectedOutput[0] = _input;
+
+        // Assert that reading the encoded input gives us our expected output
+        assertEq(RLPReader.readList(encodedInput), expectedOutput);
     }
 
     //List with 2 elements less than 55 bytes long
-    function test_readList_two_element_1to55bytes_succeeds(bytes[] memory _input) external pure {
-        //Force to two elements array with less than 55 bytes long elements value
-        vm.assume(_input.length == 2);
-        vm.assume(_input[0].length < 55);
-        vm.assume(_input[1].length < 55); //* I don't like to hardcode things but a for loop looks too cumbersome
+    function test_readList_two_element_1to55bytes_succeeds(bytes memory _input1, bytes memory _input2) external pure {
+        // We don't care about values longer than 26 bytes, we can safely clobber the memory here.
+        if (_input1.length > 26) {
+            assembly {
+                mstore(_input1, 26)
+            }
+        }
+
+        // We don't care about values longer than 26 bytes, we can safely clobber the memory here.
+        if (_input2.length > 26) {
+            assembly {
+                mstore(_input2, 26)
+            }
+        }
 
         //Encoding elements of the array
-        bytes memory firstElementLengthByte = abi.encodePacked(bytes1(uint8(0x80 + _input[0].length)));
-        bytes memory secondElementLengthByte = abi.encodePacked(bytes1(uint8(0x80 + _input[1].length)));
-        bytes memory payload = bytes.concat(firstElementLengthByte, _input[0], secondElementLengthByte, _input[1]);
+        bytes memory firstElementLengthByte = abi.encodePacked(bytes1(uint8(0x80 + _input1.length)));
+        bytes memory secondElementLengthByte = abi.encodePacked(bytes1(uint8(0x80 + _input2.length)));
+        bytes memory payload = bytes.concat(firstElementLengthByte, _input1, secondElementLengthByte, _input2);
 
         // 0xc0 + len(payload), payload
         bytes memory lengthPayload = abi.encodePacked(bytes1(uint8(0xc0 + payload.length)));
         bytes memory encodedInput = bytes.concat(lengthPayload, payload);
 
-        // Assert that reading the encoded input gives us our input
-        assertEq(RLPReader.readList(encodedInput), _input);
+        // Generate our expected output
+        bytes[] memory expectedOutput = new bytes[](2);
+        expectedOutput[0] = _input1;
+        expectedOutput[1] = _input2;
+
+        // Assert that reading the encoded input gives us our expectedOutput
+        assertEq(RLPReader.readList(encodedInput), expectedOutput);
     }
 
     //List with 10 elements less than 55 bytes long
@@ -152,4 +172,36 @@ contract RLPReader_readBytes_Test is Test {
         // Assert that reading the encoded input gives us our input
         assertEq(RLPReader.readList(encodedInput), _input);
     }
+
+    function testFuzz_readList_payload1to55bytes_succeeds(uint8 _length) external pure {
+        // Allocate an array of bytes, 55 elements long (bytes[])
+        // 1. Start with total_available_bytes = _length (bounded to 1, 54)
+        // 2. If total_avalable_bytes = 0, start to encode the thing
+        // 3. Pick a random number between 0 and total_available_bytes = x
+        // 4. Generate a random bytes with length x
+        // 5. Encode that bytes
+        // 6. Add it to our encoded input
+        // 7. Push it to the allocated array
+        // 8. Reduce total_available_bytes by the length of the encoded thing (min(x, 1))
+        // 9. Go back to step (2)
+        // Reduce the size of the allocated array to the actual number of inputs
+    }
+
+    function testFuzz_readList_payloadMoreThan55bytes_succeeds(bytes[] memory _input) external pure {
+        // If empty, force it not to be.
+        if (_input.length == 0) {
+            _input = new bytes[](1);
+        }
+
+        // Make sure that the list payload will always be more than 55 bytes long
+        // _input[vm.randomUint(0, _input.length - 1)] = vm.randomBytes(55);
+
+        // Encode the input array.
+
+        // Generate the expected output array.
+
+        // Output should match our expected output.
+        // assertEq(RLPReader.readList(encodedInput), expectedOutput);
+    }
 }
+
