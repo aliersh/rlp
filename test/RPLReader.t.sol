@@ -4,7 +4,33 @@ pragma solidity ^0.8.0;
 import { Test } from "forge-std/Test.sol";
 import { RLPReader } from "src/RLPReader.sol";
 
-contract RLPReader_readBytes_Test is Test {
+contract RLPReader_TestInit is Test {
+    function getLengthBytes(bytes memory bytesInput) internal pure returns (uint8, bytes memory) {
+        // Convert the uint hex value of _input.length to bytes32 for an easy iteration
+        bytes32 inputLengthBytes = bytes32(bytesInput.length);
+
+        // Iterate from left to right until we find the first non-zero value
+        uint8 lengthLength = 0;
+        for (uint8 i = 0; i < 32; i++) {
+            if (inputLengthBytes[i] > 0) {
+                lengthLength = 32 - i;
+                break;
+            }
+        }
+
+        // Want to create a bytes where length is equal to lengthLength
+        // Here we're storing directly into the content of lengthBytes
+        bytes memory lengthBytes = new bytes(lengthLength); // empty, but it's the right size!
+        assembly {
+            // Equivalent to inputLengthBytes << (32 - lengthLength) * 8
+            mstore(add(lengthBytes, 32), shl(mul(sub(32, lengthLength), 8), inputLengthBytes))
+        }
+
+        return (lengthLength, lengthBytes);
+    }
+}
+
+contract RLPReader_readBytes_Test is RLPReader_TestInit {
     // Test single bytes in range [0x00, 0x7f] are encoded as themselves
     function test_readBytes_00to7f_succeeds() external pure {
         // Check if all values between 0x00 and 0x7f decodes as the same byte
@@ -61,11 +87,17 @@ contract RLPReader_readBytes_Test is Test {
 
         // Spec says that for values longer than 55 bytes, the encoding is:
         // 0xb7 + len(len(value)), len(value), value
-        bytes memory lenghtLenghtBytes = abi.encodePacked(bytes1(uint8(0xb7 + lengthLength))); // correct!
-        bytes memory encodedInput = bytes.concat(lenghtLenghtBytes, lengthBytes, _input);
+        bytes memory lengthLengthBytes = abi.encodePacked(bytes1(uint8(0xb7 + lengthLength))); // correct!
+        bytes memory encodedInput = bytes.concat(lengthLengthBytes, lengthBytes, _input);
 
         // Assert that reading the encoded input gives us our input
         assertEq(RLPReader.readBytes(encodedInput), _input);
+    }
+}
+
+contract RLPReader_readList_Test is RLPReader_TestInit {
+    function testFuzz_readList_empty_succeeds(bytes[] memory _input) external {
+        // TODO
     }
 
     // Test lists with less than 55 bytes long payload are encoded correctly
@@ -80,16 +112,21 @@ contract RLPReader_readBytes_Test is Test {
         // 2. If total_avalable_bytes = 0, start to encode the thing
         while (total_available_bytes > 0) {
             // 3. Pick a random number between 0 and total_available_bytes = x
-            uint256 randomNumber = vm.randomUint(0, total_available_bytes); //? min 0 or 1?
+            uint256 randomNumber = vm.randomUint(0, total_available_bytes);
 
             // 4. Generate a random bytes with length x
             bytes memory randomBytes = vm.randomBytes(randomNumber);
 
             // 5. Encode that bytes
-            bytes memory lengthBytes = abi.encodePacked(bytes1(uint8(0x80 + randomBytes.length)));
-
-            // 6. Add it to our encoded input
-            bytes memory encodedBytesInput = bytes.concat(lengthBytes, randomBytes);
+            bytes memory encodedBytesInput;
+            if (randomBytes.length == 0) {
+                encodedBytesInput = hex"80";
+            } else if (randomBytes.length == 1 && uint8(randomBytes[0]) < 128) {
+                encodedBytesInput = abi.encodePacked(randomBytes[0]);
+            } else {
+                bytes memory lengthBytes = abi.encodePacked(bytes1(uint8(0x80 + randomBytes.length)));
+                encodedBytesInput = bytes.concat(lengthBytes, randomBytes);
+            }
 
             // 7. Push it to the allocated array
             currentPayload[index] = encodedBytesInput;
@@ -99,21 +136,22 @@ contract RLPReader_readBytes_Test is Test {
             index++;
         }
 
-        // Reduce the size of the allocated array to the actual number of inputs
-        bytes[] memory payload = new bytes[](index);
-
         // I'm building 2 things here from the payload array, a decoded list and an encoded output, to assert at the end
-        bytes[] memory decodedList;
+        bytes[] memory decodedList = new bytes[](index);
         bytes memory bytesPayload;
 
         for (uint8 i = 0; i < index; i++) {
-            payload[i] = currentPayload[i];
-            decodedList[i] = RLPReader.readBytes(payload[i]); //* Assuming I have this function ready
-            bytesPayload = abi.encodePacked(bytesPayload, payload[i]); // Converting bytes[] to bytes to concatenate later
+            decodedList[i] = RLPReader.readBytes(currentPayload[i]); //* Assuming I have this function ready
+            bytesPayload = abi.encodePacked(bytesPayload, currentPayload[i]); // Converting bytes[] to bytes to concatenate later
+        }
+
+        // If the bytes payload is greater than 55 bytes, we have a problem
+        if (bytesPayload.length > 55) {
+            revert("Bytes payload is greater than 55 bytes");
         }
 
         // Spec for lists less that 55 byte long: 0xc0 + len(payload), payload
-        bytes memory lengthByte = abi.encodePacked(bytes1(uint8(0xc0 + payload.length)));
+        bytes memory lengthByte = abi.encodePacked(bytes1(uint8(0xc0 + bytesPayload.length)));
         bytes memory encodedInput = bytes.concat(lengthByte, bytesPayload);
 
         // Assert that reading the encoded input gives us our decoded list
@@ -135,7 +173,7 @@ contract RLPReader_readBytes_Test is Test {
 
         // Encode the input array.
         for (uint8 i = 0; i < _input.length; i++) {
-            if (_input[i].length < 55) {
+            if (_input[i].length <= 55) {
                 bytes memory lengthByte = abi.encodePacked(bytes1(uint8(0x80 + _input[i].length)));
                 bytes memory encodedInputElement = bytes.concat(lengthByte, _input[i]);
                 payload[i] = encodedInputElement;
@@ -165,30 +203,5 @@ contract RLPReader_readBytes_Test is Test {
 
         // Output should match our expected output.
         assertEq(RLPReader.readList(encodedInput), _input);
-    }
-
-    //Helper functions
-    function getLengthBytes(bytes memory bytesInput) internal pure returns (uint8, bytes memory) {
-        // Convert the uint hex value of _input.length to bytes32 for an easy iteration
-        bytes32 inputLengthBytes = bytes32(bytesInput.length);
-
-        // Iterate from left to right until we find the first non-zero value
-        uint8 lengthLength = 0;
-        for (uint8 i = 0; i < 32; i++) {
-            if (inputLengthBytes[i] > 0) {
-                lengthLength = 32 - i;
-                break;
-            }
-        }
-
-        // Want to create a bytes where length is equal to lengthLength
-        // Here we're storing directly into the content of lengthBytes
-        bytes memory lengthBytes = new bytes(lengthLength); // empty, but it's the right size!
-        assembly {
-            // Equivalent to inputLengthBytes << (32 - lengthLength) * 8
-            mstore(add(lengthBytes, 32), shl(mul(sub(32, lengthLength), 8), inputLengthBytes))
-        }
-
-        return (lengthLength, lengthBytes);
     }
 }
