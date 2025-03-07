@@ -45,4 +45,45 @@ library RLPWriter {
         }
         return output_;
     }
+
+    /**
+     * @dev Encodes a list of byte arrays into RLP format
+     * @param _input The array of byte arrays to encode
+     * @return output_ The RLP encoded list
+     *
+     * RLP encoding for lists follows these rules:
+     * 1. For a list with total payload length 0-55 bytes, the RLP encoding is: [0xc0 + length] + concatenated RLP encodings
+     * 2. For a list with total payload length >55 bytes, the RLP encoding is: [0xf7 + length of length] + [length] + concatenated RLP encodings
+     */
+    function writeList(bytes[] memory _input) internal pure returns (bytes memory output_) {
+        // First encode each item in the list
+        bytes[] memory payload = new bytes[](_input.length);
+
+        for (uint256 i = 0; i < _input.length; i++) {
+            payload[i] = writeBytes(_input[i]);
+        }
+
+        // Flatten the array of encoded items
+        bytes memory flattenedPayload = RLPHelpers.flattenArray(payload);
+
+        // Case 1: Empty list - encode as 0xc0
+        if (payload.length == 0) {
+            output_ = abi.encodePacked(bytes1(0xc0));
+        } 
+        // Case 2: Short list (total payload length 0-55 bytes) - prefix with 0xc0 + length
+        else if (flattenedPayload.length <= 55) {
+            bytes memory lengthByte = abi.encodePacked(bytes1(uint8(0xc0 + flattenedPayload.length)));
+            output_ = bytes.concat(lengthByte, flattenedPayload);
+        } 
+        // Case 3: Long list (total payload length >55 bytes) - prefix with 0xf7 + length of length, followed by length
+        else {
+            // Get the bytes representation of the payload length
+            (uint8 payloadLengthLength, bytes memory payloadLengthBytes) = RLPHelpers.getLengthBytes(flattenedPayload);
+            // Create the prefix byte: 0xf7 + length of the length bytes
+            bytes memory payloadLengthLengthBytes = abi.encodePacked(bytes1(uint8(0xf7 + payloadLengthLength)));
+            // Concatenate: prefix + length bytes + flattened payload
+            output_ = bytes.concat(payloadLengthLengthBytes, payloadLengthBytes, flattenedPayload);
+        }
+        return output_;
+    }
 }
