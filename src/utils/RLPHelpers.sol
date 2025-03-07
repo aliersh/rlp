@@ -46,4 +46,20 @@ library RLPHelpers {
 
         return (lengthLength, lengthBytes);
     }
+
+    /**
+     * @dev Concatenates an array of byte arrays into a single byte array
+     * @param array The array of byte arrays to flatten
+     * @return flattenedArray A single byte array containing all elements concatenated in order
+     *
+     * This function is useful in RLP encoding when multiple encoded items need to be
+     * combined into a single byte array, such as when encoding a list of items.
+     */
+    function flattenArray(bytes[] memory array) internal pure returns (bytes memory) {
+        bytes memory flattenedArray;
+        for (uint256 i = 0; i < array.length; i++) {
+            flattenedArray = abi.encodePacked(flattenedArray, array[i]);
+        }
+        return flattenedArray;
+    }
 }
