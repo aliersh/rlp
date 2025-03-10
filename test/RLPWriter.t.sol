@@ -3,43 +3,19 @@ pragma solidity ^0.8.0;
 
 import { Test } from "forge-std/Test.sol";
 import { RLPWriter } from "src/RLPWriter.sol";
+import "../src/utils/RLPHelpers.sol";
+import "forge-std/StdJson.sol";
 
-contract RLPWriter_TestInit is Test {
-    function getLengthBytes(bytes memory bytesInput) internal pure returns (uint8, bytes memory) {
-        // Convert the uint hex value of _input.length to bytes32 for an easy iteration
-        bytes32 inputLengthBytes = bytes32(bytesInput.length);
-
-        // Iterate from left to right until we find the first non-zero value
-        uint8 lengthLength = 0;
-        for (uint8 i = 0; i < 32; i++) {
-            if (inputLengthBytes[i] > 0) {
-                lengthLength = 32 - i;
-                break;
-            }
-        }
-
-        // Want to create a bytes where length is equal to lengthLength
-        // Here we're storing directly into the content of lengthBytes
-        bytes memory lengthBytes = new bytes(lengthLength); // empty, but it's the right size!
-        assembly {
-            // Equivalent to inputLengthBytes << (32 - lengthLength) * 8
-            mstore(add(lengthBytes, 32), shl(mul(sub(32, lengthLength), 8), inputLengthBytes))
-        }
-
-        return (lengthLength, lengthBytes);
+contract RLPWriter_writeBytes_Test is Test {
+    function test_writeBytes_empty_succeeds() external pure {
+        assertEq(RLPWriter.writeBytes(hex""), hex"80");
     }
-}
 
-contract RLPWriter_writeBytes_Test is RLPWriter_TestInit {
     function test_writeBytes_00to7f_succeeds() external pure {
-        for (uint8 i = 0x00; i < 0x80; i++) {
+        for (uint8 i = 0; i < 128; i++) {
             bytes memory encodedInput = abi.encodePacked(bytes1(i));
             assertEq(RLPWriter.writeBytes(encodedInput), encodedInput);
         }
-    }
-
-    function test_writeBytes_empty_succeeds() external pure {
-        assertEq(RLPWriter.writeBytes(hex""), hex"80");
     }
 
     function testFuzz_writeBytes_1to55bytes_succeeds(bytes memory _input) external view {
@@ -65,7 +41,7 @@ contract RLPWriter_writeBytes_Test is RLPWriter_TestInit {
         }
 
         // Call to convert length to bytes helper function
-        (uint8 lengthLength, bytes memory lengthBytes) = getLengthBytes(_input);
+        (uint8 lengthLength, bytes memory lengthBytes) = RLPHelpers.getLengthBytes(_input);
 
         // Spec says that for values longer than 55 bytes, the encoding is:
         // 0xb7 + len(len(value)), len(value), value
@@ -77,16 +53,61 @@ contract RLPWriter_writeBytes_Test is RLPWriter_TestInit {
     }
 }
 
-contract RLPWriter_writeList_Test is RLPWriter_TestInit {
-    function testFuzz_writeList_empty_succeeds(bytes[] memory _input) external pure {
-        // TODO
+contract RLPWriter_writeBytes_standard_Test is Test {
+    using stdJson for string;
+    string jsonData = vm.readFile("./test/testdata/rlptest.json");
+
+    function _runVectorTest(string memory testCase) internal view {
+        string memory inputStr = stdJson.readString(jsonData, string.concat(".", testCase, ".in"));
+        string memory outputStr = stdJson.readString(jsonData, string.concat(".", testCase, ".out"));
+        bytes memory input = bytes(inputStr);
+        bytes memory output = vm.parseBytes(outputStr);
+        assertEq(RLPWriter.writeBytes(input), output);
     }
 
-    function testFuzz_writeList_payload1to55bytes_succeeds(uint8 _length) external pure {
-        // TODO
+    function test_writeBytes_standard_emptystring_succeeds() external view {
+        _runVectorTest("emptystring");
     }
 
-    function testFuzz_writeList_payloadmorethan55bytes_succeeds(uint8 _length) external pure {
-        // TODO
+    function test_writeBytes_standard_bytestring00_succeeds() external view {
+        _runVectorTest("bytestring00");
+    }
+
+    function test_writeBytes_standard_bytestring01_succeeds() external view {
+        _runVectorTest("bytestring01");
+    }
+
+    function test_writeBytes_standard_bytestring7F_succeeds() external view {
+        _runVectorTest("bytestring7F");
+    }
+
+    function test_writeBytes_standard_shortstring_succeeds() external view {
+        _runVectorTest("shortstring");
+    }
+
+    function test_writeBytes_standard_shortstring2_succeeds() external view {
+        _runVectorTest("shortstring2");
+    }
+
+    function test_writeBytes_standard_longstring_succeeds() external view {
+        _runVectorTest("longstring");
+    }
+
+    function test_writeBytes_standard_longstring2_succeeds() external view {
+        _runVectorTest("longstring2");
     }
 }
+
+// // contract RLPWriter_writeList_Test is Test {
+// //     function testFuzz_writeList_empty_succeeds(bytes[] memory _input) external pure {
+// //         // TODO
+// //     }
+
+// //     function testFuzz_writeList_payload1to55bytes_succeeds(uint8 _length) external pure {
+// //         // TODO
+// //     }
+
+//     function testFuzz_writeList_payloadmorethan55bytes_succeeds(uint8 _length) external pure {
+//         TODO
+// //     }
+// // }
