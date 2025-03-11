@@ -55,7 +55,7 @@ library RLPHelpers {
      * This function is useful in RLP encoding when multiple encoded items need to be
      * combined into a single byte array, such as when encoding a list of items.
      */
-    function flattenArray(bytes[] memory array) internal pure returns (bytes memory) {
+    function getFlattenedArray(bytes[] memory array) internal pure returns (bytes memory) {
         bytes memory flattenedArray;
         for (uint256 i = 0; i < array.length; i++) {
             flattenedArray = abi.encodePacked(flattenedArray, array[i]);

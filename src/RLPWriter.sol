@@ -64,7 +64,7 @@ library RLPWriter {
         }
 
         // Flatten the array of encoded items
-        bytes memory flattenedPayload = RLPHelpers.flattenArray(payload);
+        bytes memory flattenedPayload = RLPHelpers.getFlattenedArray(payload);
 
         // Case 1: Empty list - encode as 0xc0
         if (payload.length == 0) {
