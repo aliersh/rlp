@@ -30,7 +30,7 @@ library RLPReader {
             output_ = abi.encodePacked();
         }
         
-        // Case 3: Prefix is between 0x81 and 0xb7 - short string
+        // Case 3: Prefix is between 0x81 and 0xb7 - short string (length < 56 bytes, prefix encodes length)
         else if (_input.length > 1 && _input[0] >= 0x81 && _input[0] <= 0xb7) {
             // Get the length of the string
             uint256 bytesLength = uint8(_input[0]) - 0x80;
@@ -45,7 +45,7 @@ library RLPReader {
             return output_;
         }
 
-        // Case 4: Prefix is between 0xB8 and 0xbf - long string
+        // Case 4: Prefix is between 0xb8 and 0xbf - long string (length >= 56 bytes, prefix followed by length bytes)
         else if (_input.length > 1 && _input[0] >= 0xb8 && _input[0] <= 0xbf) {
             // Get the length of the length of the bytes
             uint256 bytesLengthLength = uint8(_input[0]) - 0xb7;
@@ -59,7 +59,7 @@ library RLPReader {
             // Create a new bytes array with the length of the bytes
             output_ = new bytes(bytesLength);
 
-            // Copy the bytes after the prefix to the new array
+            // Copy the bytes after the prefix and length bytes to the new array (adjusting indices to skip header)
             for (uint256 i = bytesLengthLength + 1; i < bytesLengthLength + bytesLength + 1; i++) {
                 output_[i - bytesLengthLength - 1] = _input[i];
             }
@@ -76,13 +76,13 @@ library RLPReader {
      * @return output_ Array of decoded bytes from the list
      */
     function readList(bytes memory _input) internal pure returns (bytes[] memory output_) {
-        // Case 1: Prefix is between 0xc0 and 0xf7 - short list
+        // Case 1: Prefix is between 0xc0 and 0xf7 - short list (total payload < 56 bytes, prefix encodes length)
         if (_input.length > 1 && _input[0] >= 0xc0 && _input[0] <= 0xf7) {
 
             // Get the length of the list
             uint256 listLength = uint8(_input[0]) - 0xc0;
 
-            // Create a new bytes array with the length of the list
+            // Create a new array to temporarily hold each encoded item before decoding
             bytes[] memory encodedList = new bytes[](listLength);
 
             // Copy the bytes after the prefix to the new array
@@ -97,7 +97,7 @@ library RLPReader {
             return output_;
         }
 
-        // Case 2: Prefix is between 0xf8 and 0xff - long list
+        // Case 2: Prefix is between 0xf8 and 0xff - long list (total payload >= 56 bytes, prefix followed by length bytes)
         else if (_input.length > 1 && _input[0] >= 0xf8 && _input[0] <= 0xff) {
             // Get the length of the length of the list
             uint256 listLengthLength = uint8(_input[0]) - 0xf7;
@@ -105,10 +105,10 @@ library RLPReader {
             // Get the length of the list
             uint256 listLength = 0;
             for (uint256 i = 1; i <= listLengthLength; i++) {
-                listLength = listLength + (uint8(_input[i]) * 256 ** (listLengthLength - i));
+                listLength = listLength + (uint8(_input[i]) * 256 ** (listLengthLength - i)); // byte sequence to decimal big endian formula
             }
 
-            // Create a new bytes array with the length of the list
+            // Create a new array to temporarily hold each encoded item before decoding
             bytes[] memory encodedList = new bytes[](listLength);
 
             // Copy the bytes after the prefix to the new array
