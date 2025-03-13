@@ -8,10 +8,13 @@ This project provides a Solidity implementation of Recursive Length Prefix (RLP)
 - RLPWriter library (encoding bytes and lists)
 - RLPHelpers utility functions
 - Tests for RLPWriter.writeBytes()
-
-🚧 In Progress:
 - Tests for RLPWriter.writeList()
 - RLPReader library implementation
+- Tests for RLPReader.readBytes()
+
+
+🚧 In Progress:
+- Tests for RLPReader.readList()
 
 ## What is RLP?
 
