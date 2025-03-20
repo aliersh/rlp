@@ -1,20 +1,6 @@
-# Ethereum RLP Encoding and Decoding [WIP]
+# Ethereum RLP Encoding and Decoding
 
-This project provides a Solidity implementation of Recursive Length Prefix (RLP) encoding and decoding, which is the primary data serialization method used in Ethereum. **Note: This project is currently a work in progress.**
-
-## Current Implementation Status
-
-✅ Complete:
-- RLPWriter library (encoding bytes and lists)
-- RLPHelpers utility functions
-- Tests for RLPWriter.writeBytes()
-- Tests for RLPWriter.writeList()
-- RLPReader library implementation
-- Tests for RLPReader.readBytes()
-
-
-🚧 In Progress:
-- Tests for RLPReader.readList()
+This project provides a Solidity implementation of Recursive Length Prefix (RLP) encoding and decoding, which is the primary data serialization method used in Ethereum.
 
 ## What is RLP?
 
@@ -119,9 +105,9 @@ bytes[] memory decodedList = RLPReader.readList(encodedList);
 
 Current test coverage:
 - ✅ RLPWriter.writeBytes() - Complete
-- 🚧 RLPWriter.writeList() - In progress
-- 🚧 RLPReader.readBytes() - Pending implementation
-- 🚧 RLPReader.readList() - Pending implementation
+- ✅ RLPWriter.writeList() - Complete
+- ✅ RLPReader.readBytes() - Complete
+- ✅ RLPReader.readList() - Complete
 
 Run the tests with:
 
