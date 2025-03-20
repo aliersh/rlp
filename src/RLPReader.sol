@@ -146,24 +146,96 @@ library RLPReader {
             // Get the length of the length of the list
             uint256 listLengthLength = uint8(_input[0]) - 0xf7;
 
-            // Get the length of the list
-            uint256 listLength = 0;
+            // Get the length of the list payload
+            uint256 payloadLength = 0;
             for (uint256 i = 1; i <= listLengthLength; i++) {
-                listLength = listLength + (uint8(_input[i]) * 256 ** (listLengthLength - i)); // byte sequence to decimal big endian formula
+                payloadLength = payloadLength + (uint8(_input[i]) * 256 ** (listLengthLength - i)); // byte sequence to decimal big endian formula
             }
 
-            // Create a new array to temporarily hold each encoded item before decoding
-            bytes[] memory encodedList = new bytes[](listLength);
+            // Determine starting index for the payload (after prefix and length bytes)
+            uint256 payloadStartIndex = listLengthLength + 1;
+            
+            // Count the number of items in the list using a first pass
+            uint256 itemCount = 0;
+            uint256 payloadIndex = payloadStartIndex;
 
-            // Copy the bytes after the prefix to the new array
-            for (uint256 i = listLengthLength + 1; i < listLengthLength + listLength + 1; i++) {
-                encodedList[i - listLengthLength - 1] = abi.encodePacked(_input[i]);
+            // First pass: count items by traversing the payload once
+            while (payloadIndex < payloadStartIndex + payloadLength) {
+                uint8 prefix = uint8(bytes1(_input[payloadIndex]));
+                
+                // Handle single byte case (0x00-0x7f) - byte is its own RLP encoding
+                if (prefix <= 0x7f) {
+                    itemCount++;
+                    payloadIndex += 1; // Move past this single byte
+                } 
+                // Handle string case (0x80-0xbf) - length is encoded in the prefix
+                else if (prefix >= 0x80 && prefix <= 0xbf) {
+                    if (prefix <= 0xb7) {
+                        uint256 strLength = prefix - 0x80;
+                        itemCount++;
+                        payloadIndex += 1 + strLength; // Skip prefix byte + content bytes
+                    } else {
+                        uint256 lengthBytesCount = prefix - 0xb7;
+                        uint256 strLength = 0;
+                        for (uint256 i = 1; i <= lengthBytesCount; i++) {
+                            strLength = strLength + (uint8(_input[payloadIndex + i]) * 256 ** (lengthBytesCount - i));
+                        }
+                        itemCount++;
+                        payloadIndex += 1 + lengthBytesCount + strLength;
+                    }
+                }
+                // Missing support for nested lists
+                else {
+                    revert("Unsupported item type in list");
+                }
             }
 
-            // Decode the list
-            for (uint256 i = 0; i < listLength; i++) {
-                output_[i] = readBytes(encodedList[i]);
+            // Allocate memory for the output array
+            output_ = new bytes[](itemCount);
+            
+            // Reset index for second pass to decode actual items
+            payloadIndex = payloadStartIndex;
+
+            // Second pass: decode each item and store in output array
+            for (uint256 i = 0; i < itemCount; i++) {
+                uint8 prefix = uint8(bytes1(_input[payloadIndex]));
+                
+                // Handle single byte case (0x00-0x7f) - byte is its own RLP encoding
+                if (prefix <= 0x7f) {
+                    output_[i] = new bytes(1);
+                    output_[i][0] = _input[payloadIndex];
+                    payloadIndex += 1;
+                }
+                // Handle string case (0x80-0xbf) - extract content bytes
+                else if (prefix >= 0x80 && prefix <= 0xbf) {
+                    if (prefix <= 0xb7) {
+                        uint256 strLength = prefix - 0x80;
+                        bytes memory packedItem = new bytes(strLength);
+                        for (uint256 j = 0; j < strLength; j++) {
+                            packedItem[j] = _input[payloadIndex + 1 + j];
+                        }
+                        output_[i] = packedItem;
+                        payloadIndex += 1 + strLength;
+                    } else {
+                        uint256 lengthBytesCount = prefix - 0xb7;
+                        uint256 strLength = 0;
+                        for (uint256 j = 1; j <= lengthBytesCount; j++) {
+                            strLength = strLength + (uint8(_input[payloadIndex + j]) * 256 ** (lengthBytesCount - j));
+                        }
+                        bytes memory packedItem = new bytes(strLength);
+                        for (uint256 j = 0; j < strLength; j++) {
+                            packedItem[j] = _input[payloadIndex + 1 + lengthBytesCount + j];
+                        }
+                        output_[i] = packedItem;
+                        payloadIndex += 1 + lengthBytesCount + strLength;
+                    }
+                }
+                // Missing support for nested lists (consistency with first pass)
+                else {
+                    revert("Unsupported item type in list");
+                }
             }
+
             return output_;
         }
     }
