@@ -204,11 +204,14 @@ contract RLPWriter_writeList_Test is Test {
     /**
      * @notice Fuzz test for RLP encoding of lists with payload 1-55 bytes
      * @dev For lists with total payload 1-55 bytes, the RLP encoding is:
-     *      0xc0+length followed by the concatenation of the RLP encodings of the items
+     *      0xc0+length followed by the concatenation of the RLP encodings of the items.
+     *      This test generates RLP-encoded items directly and passes them to writeList,
+     *      as the function expects pre-encoded items.
      * @param _length Random length parameter for fuzzing
      */
     function testFuzz_writeList_payload1to55bytes_succeeds(uint8 _length) external {
         // Create an array to hold RLP-encoded items (maximum 55 elements)
+        // These are pre-encoded items that will be passed directly to writeList
         bytes[] memory payload = new bytes[](55);
         
         // Bound the total available bytes between 1 and 54 to ensure we're testing short lists
@@ -253,18 +256,12 @@ contract RLPWriter_writeList_Test is Test {
                 index++;
             }
         }
-
-        // Create an array to hold the original (decoded) items
-        bytes[] memory decodedList = new bytes[](index);
         
         // Create a variable to hold the concatenated RLP-encoded items
         bytes memory bytesPayload;
 
         // For each valid item in our payload array:
         for (uint8 i = 0; i < index; i++) {
-            // Decode the RLP-encoded item to get the original bytes
-            decodedList[i] = RLPReader.readBytes(payload[i]);
-            
             // Concatenate the RLP-encoded item to our payload
             bytesPayload = bytes.concat(bytesPayload, payload[i]);
         }
@@ -273,15 +270,17 @@ contract RLPWriter_writeList_Test is Test {
         // 0xc0 + length of payload, followed by the concatenated payload
         bytes memory expectedOutput = abi.encodePacked(bytes1(uint8(0xc0 + bytesPayload.length)), bytesPayload);
 
-        // Verify that RLPWriter.writeList produces the expected output when given the original items
-        assertEq(RLPWriter.writeList(decodedList), expectedOutput);
+        // Verify that RLPWriter.writeList produces the expected output when given pre-encoded items
+        assertEq(RLPWriter.writeList(payload), expectedOutput);
     }
 
     /**
      * @notice Fuzz test for RLP encoding of lists with payload more than 55 bytes
      * @dev For lists with total payload > 55 bytes, the RLP encoding is:
      *      0xf7+length of the length, followed by the length, followed by the
-     *      concatenation of the RLP encodings of the items
+     *      concatenation of the RLP encodings of the items.
+     *      This test encodes each input element into RLP format first, then passes
+     *      these pre-encoded items to writeList.
      * @param _input Random bytes array input for fuzzing
      */
     function testFuzz_writeList_payloadmorethan55bytes_succeeds(bytes[] memory _input) external {
@@ -295,6 +294,7 @@ contract RLPWriter_writeList_Test is Test {
         _input[vm.randomUint(0, _input.length - 1)] = vm.randomBytes(56);
 
         // Create an array to hold the RLP-encoded version of each input element
+        // These pre-encoded items will be passed directly to writeList
         bytes[] memory payload = new bytes[](_input.length);
 
         // Encode each input element according to RLP encoding rules:
@@ -344,8 +344,8 @@ contract RLPWriter_writeList_Test is Test {
         // prefix + length bytes + concatenated payload
         bytes memory encodedInput = bytes.concat(payloadLengthLengthBytes, payloadLengthBytes, bytesPayload);
 
-        // Verify that RLPWriter.writeList produces the expected output when given the original items
-        assertEq(RLPWriter.writeList(_input), encodedInput);
+        // Verify that RLPWriter.writeList produces the expected output when given pre-encoded items
+        assertEq(RLPWriter.writeList(payload), encodedInput);
     }
 }
 
