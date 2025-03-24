@@ -48,26 +48,19 @@ library RLPWriter {
     }
 
     /**
-     * @notice Encodes a list of byte arrays into RLP format
-     * @dev Handles two different RLP list encoding cases:
-     *      1. Short list (0-55 bytes) - prefix with 0xc0 + length
-     *      2. Long list (>55 bytes) - prefix with 0xf7 + length of length, followed by length
-     * @param _input The array of byte arrays to encode
+     * @notice Encodes a list of pre-encoded RLP items into an RLP list
+     * @dev Takes pre-encoded RLP items (including nested lists) and wraps them in a list
+     *      structure. Each element in the input must already be properly RLP encoded.
+     *      This naturally supports nested lists since they will already be encoded in the input.
+     * @param _input The array of pre-encoded RLP items
      * @return output_ The RLP encoded list
      */
     function writeList(bytes[] memory _input) internal pure returns (bytes memory output_) {
-        // First encode each item in the list
-        bytes[] memory payload = new bytes[](_input.length);
-
-        for (uint256 i = 0; i < _input.length; i++) {
-            payload[i] = writeBytes(_input[i]);
-        }
-
-        // Flatten the array of encoded items
-        bytes memory flattenedPayload = RLPHelpers.getFlattenedArray(payload);
+        // Flatten the array of pre-encoded items
+        bytes memory flattenedPayload = RLPHelpers.getFlattenedArray(_input);
 
         // Case 1: Empty list - encode as 0xc0
-        if (payload.length == 0) {
+        if (_input.length == 0) {
             output_ = abi.encodePacked(bytes1(0xc0));
         } 
         // Case 2: Short list (total payload length 0-55 bytes) - prefix with 0xc0 + length

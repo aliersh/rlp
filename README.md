@@ -46,7 +46,9 @@ The `RLPWriter` library handles encoding data into the RLP format. It follows th
    - Followed by the length of the concatenated encodings
    - Followed by the concatenated RLP encodings of the list items
 
-### RLPReader [PENDING]
+Note: The `writeList` function expects pre-encoded RLP items. This naturally supports nested lists since they would already be encoded in the input.
+
+### RLPReader
 
 The `RLPReader` library will handle decoding RLP encoded data back into its original form. It will implement the inverse operations of the encoding process:
 
@@ -80,14 +82,21 @@ uint256 myNumber = 42;
 bytes memory numberAsBytes = abi.encodePacked(myNumber);
 bytes memory encodedNumber = RLPWriter.writeBytes(numberAsBytes);
 
-// Example 3: Encoding a list
+// Example 3: Encoding a list of raw items
 bytes[] memory myList = new bytes[](2);
 myList[0] = "item1"; // String literals converted to bytes
 myList[1] = "item2";
 bytes memory encodedList = RLPWriter.writeList(myList);
+
+// Example 4: Encoding a nested list
+// For nested lists, provide pre-encoded RLP items
+bytes[] memory nestedList = new bytes[](2);
+nestedList[0] = hex"83646f67";  // RLP encoded "dog"
+nestedList[1] = hex"c483636174";  // RLP encoded list containing "cat"
+bytes memory encodedNestedList = RLPWriter.writeList(nestedList);
 ```
 
-### Decoding Data [PENDING]
+### Decoding Data
 
 ```solidity
 // Decoding a byte array
