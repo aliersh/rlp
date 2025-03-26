@@ -256,14 +256,20 @@ contract RLPWriter_writeList_Test is Test {
                 index++;
             }
         }
+
+        // Create a new array with exactly the number of items we generated
+        bytes[] memory finalPayload = new bytes[](index);
+        for (uint256 i = 0; i < index; i++) {
+            finalPayload[i] = payload[i];
+        }
         
         // Create a variable to hold the concatenated RLP-encoded items
         bytes memory bytesPayload;
 
         // For each valid item in our payload array:
-        for (uint8 i = 0; i < index; i++) {
+        for (uint256 i = 0; i < index; i++) {
             // Concatenate the RLP-encoded item to our payload
-            bytesPayload = bytes.concat(bytesPayload, payload[i]);
+            bytesPayload = bytes.concat(bytesPayload, finalPayload[i]);
         }
 
         // Create the expected RLP encoding for the list:
@@ -271,7 +277,7 @@ contract RLPWriter_writeList_Test is Test {
         bytes memory expectedOutput = abi.encodePacked(bytes1(uint8(0xc0 + bytesPayload.length)), bytesPayload);
 
         // Verify that RLPWriter.writeList produces the expected output when given pre-encoded items
-        assertEq(RLPWriter.writeList(payload), expectedOutput);
+        assertEq(RLPWriter.writeList(finalPayload), expectedOutput);
     }
 
     /**
@@ -385,20 +391,19 @@ contract RLPWriter_writeList_standard_Test is Test {
     function test_writeList_shortListMax_succeeds() external pure {
         bytes[] memory input = new bytes[](11);
         
-        // Fill array with test values
-        input[0] = hex"84617364"; // RLP("asdf")
-        input[1] = hex"84717765"; // RLP("qwer")
-        input[2] = hex"847a7863"; // RLP("zxcv")
-        input[3] = hex"84617364"; // RLP("asdf")
-        input[4] = hex"84717765"; // RLP("qwer")
-        input[5] = hex"847a7863"; // RLP("zxcv")
-        input[6] = hex"84617364"; // RLP("asdf")
-        input[7] = hex"84717765"; // RLP("qwer")
-        input[8] = hex"847a7863"; // RLP("zxcv")
-        input[9] = hex"84617364"; // RLP("asdf")
-        input[10] = hex"84717765"; // RLP("qwer")
+        input[0] = hex"8461736466"; // RLP("asdf")
+        input[1] = hex"8471776572"; // RLP("qwer")
+        input[2] = hex"847a786376"; // RLP("zxcv")
+        input[3] = hex"8461736466"; // RLP("asdf")
+        input[4] = hex"8471776572"; // RLP("qwer")
+        input[5] = hex"847a786376"; // RLP("zxcv")
+        input[6] = hex"8461736466"; // RLP("asdf")
+        input[7] = hex"8471776572"; // RLP("qwer")
+        input[8] = hex"847a786376"; // RLP("zxcv")
+        input[9] = hex"8461736466"; // RLP("asdf")
+        input[10] = hex"8471776572"; // RLP("qwer")
         
-        assertEq(RLPWriter.writeList(input), hex"ec8461736484717765847a78638461736484717765847a78638461736484717765847a78638461736484717765");
+        assertEq(RLPWriter.writeList(input), hex"f784617364668471776572847a78637684617364668471776572847a78637684617364668471776572847a78637684617364668471776572");
     }
 
     /**
