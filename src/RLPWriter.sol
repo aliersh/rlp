@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "./utils/RLPHelpers.sol";
+import {RLPHelpers} from "./utils/RLPHelpers.sol";
 
 /**
  * @title RLPWriter
@@ -56,6 +56,13 @@ library RLPWriter {
      * @return output_ The RLP encoded list
      */
     function writeList(bytes[] memory _input) internal pure returns (bytes memory output_) {
+        // Validate that all items in the input are valid RLP items
+        for (uint256 i = 0; i < _input.length; i++) {
+            if (!RLPHelpers.validateRLPItem(_input[i])) {
+                revert("Invalid RLP item in input array");
+            }
+        }
+
         // Flatten the array of pre-encoded items
         bytes memory flattenedPayload = RLPHelpers.getFlattenedArray(_input);
 

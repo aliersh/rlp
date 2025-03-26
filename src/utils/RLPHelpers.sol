@@ -57,4 +57,108 @@ library RLPHelpers {
         }
         return flattenedArray;
     }
+
+    /**
+     * @notice Validates that a byte array follows RLP encoding rules
+     * @dev Checks if the provided byte array is a valid RLP encoded item by verifying:
+     *      1. Single bytes (0x00-0x7f) are encoded as themselves
+     *      2. Short strings (0-55 bytes) start with 0x80 + length
+     *      3. Long strings (>55 bytes) start with 0xb7 + length of length
+     *      4. Short lists (0-55 bytes) start with 0xc0 + length
+     *      5. Long lists (>55 bytes) start with 0xf7 + length of length
+     * @param item The RLP encoded byte array to validate
+     * @return bool Returns true if the item is valid RLP, reverts otherwise
+     */
+    function validateRLPItem(bytes memory item) internal pure returns (bool) {
+        // Empty byte arrays should be encoded as 0x80
+        if (item.length == 0) {
+            revert("Invalid RLP item: empty byte array should be encoded as 0x80");
+        }
+
+        // Get the first byte which determines the type and length of the item
+        uint8 firstByte = uint8(item[0]);
+
+        // Case 1: Single byte < 0x80 is encoded as itself
+        if (item.length == 1 && firstByte < 0x80) {
+            return true;
+        }
+
+        // Case 2: Short string (0-55 bytes)
+        // Prefix: 0x80 + length of the string
+        if (firstByte >= 0x80 && firstByte <= 0xb7) {
+            uint256 length = firstByte - 0x80;
+            // Special case: empty string should be encoded as 0x80 only
+            if (length == 0) {
+                if (item.length > 1) {
+                    revert("Invalid RLP item: incorrect length for short string");
+                }
+            } 
+            // Regular case: verify total length matches prefix
+            else if (item.length != length + 1) {
+                revert("Invalid RLP item: incorrect length for short string");
+            }
+            return true;
+        }
+
+        // Case 3: Long string (>55 bytes)
+        // Prefix: 0xb7 + length of the length
+        if (firstByte >= 0xb8 && firstByte <= 0xbf) {
+            uint256 lengthOfLength = firstByte - 0xb7;
+            // Check if we have enough bytes to read the length
+            if (item.length < lengthOfLength + 1) {
+                revert("Invalid RLP item: insufficient bytes");
+            }
+
+            // Calculate the actual length from the length bytes
+            uint256 length = 0;
+            for (uint256 i = 1; i <= lengthOfLength; i++) {
+                length = length * 256 + uint8(item[i]);
+            }
+
+            // Verify total length matches: prefix byte + length bytes + content
+            if (item.length != lengthOfLength + length + 1) {
+                revert("Invalid RLP item: incorrect length for long string");
+            }
+            
+            return true;
+        }
+        
+        // Case 4 & 5: Lists (short: 0xc0-0xf7, long: 0xf8-0xff)
+        if (firstByte >= 0xc0 && firstByte <= 0xff) {
+            // Case 4: Short list (total payload 0-55 bytes)
+            if (firstByte <= 0xf7) {
+                uint256 listLength = firstByte - 0xc0;
+                // Special case: empty list should be encoded as 0xc0 only
+                if (firstByte == 0xc0 && item.length > 1) {
+                    revert("Invalid RLP: empty list should be encoded as 0xc0 only");
+                } 
+                // Regular case: verify total length matches prefix
+                else if (firstByte != 0xc0 && item.length != listLength + 1) {
+                    revert("Invalid RLP: incorrect length for short list");
+                }
+            }
+            // Case 5: Long list (total payload >55 bytes)
+            else {
+                uint256 lengthOfLength = firstByte - 0xf7;
+                // Check if we have enough bytes to read the length
+                if (item.length < lengthOfLength + 1) {
+                    revert("Invalid RLP: insufficient bytes for long list length");
+                }
+                
+                // Calculate the actual length from the length bytes
+                uint256 listLength = 0;
+                for (uint256 i = 1; i <= lengthOfLength; i++) {
+                    listLength = listLength * 256 + uint8(item[i]);
+                }
+                
+                // Verify total length matches: prefix byte + length bytes + content
+                if (item.length != 1 + lengthOfLength + listLength) {
+                    revert("Invalid RLP: incorrect length for long list");
+                }
+            }
+            return true;
+        }
+        // This return is never reached as all byte values are covered above
+        return false;
+    }
 }
