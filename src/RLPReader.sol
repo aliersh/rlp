@@ -100,9 +100,15 @@ library RLPReader {
                     itemCount++;
                     payloadIndex += 1 + itemLength; // Skip prefix byte + content bytes
                 }
-                // Missing support for nested lists
-                else {
-                    revert("Unsupported item type in list");
+                // Handle nested list case (0xc0-0xff)
+                else if (prefix >= 0xc0) {
+                    if (prefix > 0xf7) {
+                        // A short list cannot contain a long list as it would exceed the 55-byte limit
+                        revert("Invalid RLP: short list cannot contain long list");
+                    }
+                    uint256 listLength = prefix - 0xc0 + 1; // Include prefix byte
+                    itemCount++;
+                    payloadIndex += listLength; // Skip prefix byte + entire list content
                 }
             }
 
@@ -132,9 +138,23 @@ library RLPReader {
                     output_[i] = packedItem;
                     payloadIndex += 1 + itemLength; // Skip prefix byte + content bytes
                 }
-                // Missing support for nested lists (consistency with first pass)
-                else {
-                    revert("Unsupported item type in list");
+                // Handle nested list case (0xc0-0xff)
+                else if (prefix >= 0xc0) {
+                    if (prefix > 0xf7) {
+                        // A short list cannot contain a long list as it would exceed the 55-byte limit
+                        revert("Invalid RLP: short list cannot contain long list");
+                    }
+                    uint256 nestedLength = prefix - 0xc0 + 1; // Include prefix byte
+                    
+                    // Create a new bytes array for the nested list
+                    bytes memory nestedListBytes = new bytes(nestedLength);
+                    for (uint256 j = 0; j < nestedLength; j++) {
+                        nestedListBytes[j] = _input[payloadIndex + j];
+                    }
+                    
+                    // Store the entire nested list as bytes
+                    output_[i] = nestedListBytes;
+                    payloadIndex += nestedLength;
                 }
             }
 
@@ -184,9 +204,24 @@ library RLPReader {
                         payloadIndex += 1 + lengthBytesCount + strLength;
                     }
                 }
-                // Missing support for nested lists
-                else {
-                    revert("Unsupported item type in list");
+                // Handle nested list case (0xc0-0xff)
+                else if (prefix >= 0xc0) {
+                    // For short lists (0xc0-0xf7)
+                    if (prefix <= 0xf7) {
+                        uint256 listLength = prefix - 0xc0 + 1; // Include prefix byte
+                        itemCount++;
+                        payloadIndex += listLength; // Skip prefix byte + entire list content
+                    }
+                    // For long lists (0xf8-0xff)
+                    else {
+                        uint256 lengthBytesCount = prefix - 0xf7;
+                        uint256 listLength = 0;
+                        for (uint256 j = 1; j <= lengthBytesCount; j++) {
+                            listLength += uint8(_input[payloadIndex + j]) * 256 ** (lengthBytesCount - j);
+                        }
+                        itemCount++;
+                        payloadIndex += lengthBytesCount + listLength + 1;
+                    }
                 }
             }
 
@@ -230,9 +265,31 @@ library RLPReader {
                         payloadIndex += 1 + lengthBytesCount + strLength;
                     }
                 }
-                // Missing support for nested lists (consistency with first pass)
-                else {
-                    revert("Unsupported item type in list");
+                // Handle nested list case (0xc0-0xff)
+                else if (prefix >= 0xc0) {
+                    uint256 nestedLength;
+                    // For short lists (0xc0-0xf7), can only contain short lists
+                    if (prefix <= 0xf7) {
+                        nestedLength = prefix - 0xc0 + 1; // Include prefix byte
+                    }
+                    // For long lists (0xf8-0xff), can contain both short and long lists
+                    else {
+                        uint256 lengthBytesCount = prefix - 0xf7;
+                        nestedLength = lengthBytesCount + 1; // Start with prefix and length bytes
+                        for (uint256 j = 1; j <= lengthBytesCount; j++) {
+                            nestedLength += uint8(_input[payloadIndex + j]) * 256 ** (lengthBytesCount - j);
+                        }
+                    }
+                    
+                    // Create a new bytes array for the nested list
+                    bytes memory nestedListBytes = new bytes(nestedLength);
+                    for (uint256 j = 0; j < nestedLength; j++) {
+                        nestedListBytes[j] = _input[payloadIndex + j];
+                    }
+                    
+                    // Store the entire nested list as bytes
+                    output_[i] = nestedListBytes;
+                    payloadIndex += nestedLength;
                 }
             }
 
