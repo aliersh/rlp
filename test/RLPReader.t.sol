@@ -340,7 +340,7 @@ contract RLPReader_readList_standard_Test is Test {
     function test_readList_standard_mixedList_succeeds() external pure {
         bytes[] memory expected = new bytes[](3);
         expected[0] = "zw";
-        expected[1] = hex"c104";  // This represents [4] in RLP format (0xc1 prefix for single-item list, followed by 0x04)
+        expected[1] = hex"04";  // Now just contains the payload without the c1 prefix
         expected[2] = hex"01";  // This represents 1 as a single byte
         
         assertEq(RLPReader.readList(hex"c6827a77c10401"), expected);
@@ -376,21 +376,20 @@ contract RLPReader_readList_standard_Test is Test {
      *      The input is a list containing 4 identical nested lists, each containing ["asdf", "qwer", "zxcv"]
      */
     function test_readList_standard_listOfLists_succeeds() external pure {
-        // The inner list ["asdf", "qwer", "zxcv"] is encoded as:
-        // cc - prefix for list with total length 12
+        // The inner list ["asdf", "qwer", "zxcv"] payload is:
         // 846173 6484 - "asdf"
         // 717765 847a - "qwer"
         // 7863 - "zxcv"
-        bytes memory innerListEncoded = hex"cc8461736484717765847a7863";
+        bytes memory innerListPayload = hex"8461736484717765847a7863";
 
         // Create the expected list with 4 identical inner lists
         bytes[] memory expected = new bytes[](4);
         for (uint i = 0; i < 4; i++) {
-            expected[i] = innerListEncoded;
+            expected[i] = innerListPayload;
         }
         
         assertEq(
-            RLPReader.readList(hex"f4cc8461736484717765847a7863cc8461736484717765847a7863cc8461736484717765847a7863cc8461736484717765847a7863"),
+            RLPReader.readList(hex"f4cc8461736484717765847a7863cc8461736484717765847a7863cc8461736484717765847a7863cc8461736484717765847a7863cc8461736484717765847a7863"),
             expected
         );
     }
@@ -402,14 +401,14 @@ contract RLPReader_readList_standard_Test is Test {
     function test_readList_standard_nestedEmptyLists_succeeds() external pure {
         bytes[] memory expected = new bytes[](2);
         
-        // First element is [[], []]
+        // First element is [[], []] - should contain just the payload without the c2 prefix
         bytes[] memory innerList = new bytes[](2);
-        innerList[0] = RLPWriter.writeList(new bytes[](0)); // []
-        innerList[1] = RLPWriter.writeList(new bytes[](0)); // []
-        expected[0] = RLPWriter.writeList(innerList);       // [[], []]
+        innerList[0] = hex""; // Empty list payload
+        innerList[1] = hex""; // Empty list payload
+        expected[0] = hex"c0c0"; // Just the concatenated empty list encodings
         
         // Second element is []
-        expected[1] = RLPWriter.writeList(new bytes[](0));  // []
+        expected[1] = hex""; // Empty list payload
         
         assertEq(RLPReader.readList(hex"c4c2c0c0c0"), expected);
     }
@@ -421,19 +420,14 @@ contract RLPReader_readList_standard_Test is Test {
     function test_readList_standard_complexNestedLists_succeeds() external pure {
         bytes[] memory expected = new bytes[](3);
         
-        // First element: []
-        expected[0] = RLPWriter.writeList(new bytes[](0));
+        // First element: [] - empty payload
+        expected[0] = hex"";
         
-        // Second element: [[]]
-        bytes[] memory singleEmptyList = new bytes[](1);
-        singleEmptyList[0] = RLPWriter.writeList(new bytes[](0));
-        expected[1] = RLPWriter.writeList(singleEmptyList);
+        // Second element: [[]] - payload is just c0
+        expected[1] = hex"c0";
         
-        // Third element: [[], [[]]]
-        bytes[] memory complexList = new bytes[](2);
-        complexList[0] = RLPWriter.writeList(new bytes[](0));
-        complexList[1] = RLPWriter.writeList(singleEmptyList);
-        expected[2] = RLPWriter.writeList(complexList);
+        // Third element: [[], [[]]] - payload is c0c1c0
+        expected[2] = hex"c0c1c0";
         
         assertEq(RLPReader.readList(hex"c7c0c1c0c3c0c1c0"), expected);
     }
@@ -444,16 +438,15 @@ contract RLPReader_readList_standard_Test is Test {
      *      Each inner list is ["key", "val"]
      */
     function test_readList_standard_keyValuePairs_succeeds() external pure {
-        // The inner list ["key", "val"] is encoded as:
-        // c8 - prefix for list with total length 8
+        // The inner list ["key", "val"] payload is:
         // 846b6579 - "key"
         // 8476616c - "val"
-        bytes memory kvPairEncoded = hex"c8846b65798476616c";
+        bytes memory kvPairPayload = hex"846b65798476616c";
         
         // Create the expected list with 4 identical key-value pair lists
         bytes[] memory expected = new bytes[](4);
         for (uint i = 0; i < 4; i++) {
-            expected[i] = kvPairEncoded;
+            expected[i] = kvPairPayload;
         }
         
         assertEq(
