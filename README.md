@@ -10,19 +10,25 @@ The primary purpose of RLP is to encode structure; encoding specific data types 
 
 ## Implementation
 
-This library provides a Solidity implementation of RLP with two main components:
+This library provides a Solidity implementation of RLP with three main components:
 
 ### Input Types
 
 **Important**: All RLP functions accept only `bytes` or arrays of `bytes` as inputs. Any other data types (strings, integers, booleans, etc.) must be converted to `bytes` format by the user before passing to the RLP encoding functions.
 
 For example:
-- To encode a string: first convert it to bytes, then pass to RLPWriter
-- To encode an integer: first convert it to its bytes representation, then pass to RLPWriter
+- To encode a string: first convert it to bytes using `abi.encodePacked(string)`
+- To encode an integer: first convert it to its bytes representation using `abi.encodePacked(uint256)`
+- For addresses: convert using `abi.encodePacked(address)`
 
 ### RLPWriter
 
-The `RLPWriter` library handles encoding data into the RLP format. It follows the RLP specification as defined in the Ethereum Yellow Paper:
+The `RLPWriter` library handles encoding data into the RLP format. It provides two main functions:
+
+1. `writeBytes(bytes memory)`: Encodes a single byte array into RLP format
+2. `writeList(bytes[] memory)`: Encodes a list of pre-encoded RLP items into an RLP list
+
+The library follows the RLP specification with comprehensive validation and error handling:
 
 1. **Single byte encoding**: 
    - For a single byte with value < 0x80, the byte itself is its own RLP encoding
@@ -46,77 +52,108 @@ The `RLPWriter` library handles encoding data into the RLP format. It follows th
    - Followed by the length of the concatenated encodings
    - Followed by the concatenated RLP encodings of the list items
 
-Note: The `writeList` function expects pre-encoded RLP items. This naturally supports nested lists since they would already be encoded in the input.
-
 ### RLPReader
 
-The `RLPReader` library will handle decoding RLP encoded data back into its original form. It will implement the inverse operations of the encoding process:
+The `RLPReader` library handles decoding RLP encoded data back into its original form. It provides two main functions:
 
-1. Identify the type and length of the encoded data based on the first byte
-2. Extract the raw data according to the identified type and length
-3. For lists, recursively decode each item in the list
+1. `readBytes(bytes memory)`: Decodes RLP encoded bytes into the original byte array
+2. `readList(bytes memory)`: Decodes an RLP encoded list into an array of RLP items
 
-Current status: Basic structure defined, implementation pending.
+The library implements comprehensive decoding with validation:
 
-### Helper Functions
+1. **Single byte decoding (0x00-0x7f)**:
+   - Returns the byte as a single-element bytes array
 
-The `RLPHelpers` library provides utility functions for both encoding and decoding:
+2. **String decoding**:
+   - Short strings (0x80-0xb7): Extracts length from prefix and returns data
+   - Long strings (0xb8-0xbf): Extracts length of length, then length, then data
 
-1. `getLengthBytes`: Determines the number of bytes needed to represent a length and extracts those bytes
-2. `flattenArray`: Concatenates an array of byte arrays into a single byte array
+3. **List decoding**:
+   - Short lists (0xc0-0xf7): Extracts items based on prefix length
+   - Long lists (0xf8-0xff): Extracts length of length, then length, then items
+
+### RLPHelpers
+
+The `RLPHelpers` library provides essential utility functions used by both the writer and reader:
+
+1. `getLengthBytes(bytes memory)`: Calculates and returns the number of bytes needed for length encoding
+2. `getFlattenedArray(bytes[] memory)`: Efficiently concatenates multiple byte arrays
+3. `validateRLPItem(bytes memory)`: Performs comprehensive RLP encoding validation:
+   - Validates prefix bytes match content length
+   - Ensures proper encoding format for different data types
+   - Checks for valid length encodings
 
 ## Usage
 
-### Encoding Data
+### Encoding Examples
 
 ```solidity
 // IMPORTANT: All inputs must be bytes or arrays of bytes
+import {RLPWriter} from "./RLPWriter.sol";
 
-// Example 1: Encoding a byte array
-// Note: String literals in Solidity are automatically converted to bytes
-bytes memory myData = "Hello, Ethereum!";
-bytes memory encoded = RLPWriter.writeBytes(myData);
+// Example 1: Encoding different data types
+bytes memory encodedAddress = RLPWriter.writeBytes(abi.encodePacked(address(0x123)));
+bytes memory encodedUint = RLPWriter.writeBytes(abi.encodePacked(uint256(42)));
+bytes memory encodedString = RLPWriter.writeBytes(abi.encodePacked("Hello"));
 
-// Example 2: Encoding an integer (must be converted to bytes first)
-uint256 myNumber = 42;
-bytes memory numberAsBytes = abi.encodePacked(myNumber);
-bytes memory encodedNumber = RLPWriter.writeBytes(numberAsBytes);
+// Example 2: Encoding a list of items
+bytes[] memory items = new bytes[](3);
+items[0] = RLPWriter.writeBytes(abi.encodePacked(uint256(1)));
+items[1] = RLPWriter.writeBytes(abi.encodePacked("test"));
+items[2] = RLPWriter.writeBytes(abi.encodePacked(address(0x123)));
+bytes memory encodedList = RLPWriter.writeList(items);
 
-// Example 3: Encoding a list of raw items
-bytes[] memory myList = new bytes[](2);
-myList[0] = "item1"; // String literals converted to bytes
-myList[1] = "item2";
-bytes memory encodedList = RLPWriter.writeList(myList);
+// Example 3: Encoding a nested list
+bytes[] memory innerList = new bytes[](2);
+innerList[0] = RLPWriter.writeBytes(abi.encodePacked("inner1"));
+innerList[1] = RLPWriter.writeBytes(abi.encodePacked("inner2"));
+bytes memory encodedInner = RLPWriter.writeList(innerList);
 
-// Example 4: Encoding a nested list
-// For nested lists, provide pre-encoded RLP items
-bytes[] memory nestedList = new bytes[](2);
-nestedList[0] = hex"83646f67";  // RLP encoded "dog"
-nestedList[1] = hex"c483636174";  // RLP encoded list containing "cat"
-bytes memory encodedNestedList = RLPWriter.writeList(nestedList);
+bytes[] memory outerList = new bytes[](2);
+outerList[0] = RLPWriter.writeBytes(abi.encodePacked("outer"));
+outerList[1] = encodedInner;  // Add the encoded inner list
+bytes memory encodedNested = RLPWriter.writeList(outerList);
 ```
 
-### Decoding Data
+### Decoding Examples
 
 ```solidity
-// Decoding a byte array
-bytes memory encoded = hex"8a48656c6c6f2c20455448"; // RLP encoding of "Hello, ETH"
+import {RLPReader} from "./RLPReader.sol";
+
+// Example 1: Decoding a simple value
+bytes memory encoded = hex"8568656c6c6f";  // RLP encoded "hello"
 bytes memory decoded = RLPReader.readBytes(encoded);
+// decoded now contains the original "hello" bytes
 
-// Decoding a list
-bytes memory encodedList = hex"c88a48656c6c6f2c20455448847465737421"; // RLP encoding of ["Hello, ETH", "test!"]
+// Example 2: Decoding a list
+bytes memory encodedList = hex"c88568656c6c6f8474657374";  // RLP encoding of ["hello", "test"]
 bytes[] memory decodedList = RLPReader.readList(encodedList);
+// decodedList[0] contains encoded "hello"
+// decodedList[1] contains encoded "test"
 
-// After decoding, the user is responsible for converting the bytes back to their original types
+// Example 3: Working with decoded data
+bytes memory decodedItem = RLPReader.readBytes(decodedList[0]);
+// Convert back to string if needed:
+string memory str = string(decodedItem);
 ```
 
 ## Testing
 
-Current test coverage:
-- ✅ RLPWriter.writeBytes() - Complete
-- ✅ RLPWriter.writeList() - Complete
-- ✅ RLPReader.readBytes() - Complete
-- ✅ RLPReader.readList() - Complete
+The implementation includes comprehensive test coverage:
+
+- ✅ RLPWriter
+  - Single byte encoding
+  - String encoding (short and long)
+  - List encoding (short and long)
+  - Nested list encoding
+  - Error cases
+
+- ✅ RLPReader
+  - Single byte decoding
+  - String decoding (short and long)
+  - List decoding (short and long)
+  - Nested list decoding
+  - Error handling
 
 Run the tests with:
 
