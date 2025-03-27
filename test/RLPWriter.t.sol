@@ -344,6 +344,14 @@ contract RLPWriter_writeList_Test is Test {
  */
 contract RLPWriter_writeList_standard_Test is Test {
     /**
+     * @notice Tests RLP encoding of an empty list
+     */
+    function test_writeList_emptyList_succeeds() external pure {
+        bytes[] memory input = new bytes[](0);
+        assertEq(RLPWriter.writeList(input), hex"c0");
+    }
+
+    /**
      * @notice Tests RLP encoding of a list of strings
      */
     function test_writeList_stringList_succeeds() external pure {
