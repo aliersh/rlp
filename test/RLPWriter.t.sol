@@ -15,16 +15,6 @@ import { RLPHelpers } from "src/utils/RLPHelpers.sol";
  */
 contract RLPWriter_writeBytes_Test is Test {
     /**
-     * @notice Tests RLP encoding of an empty byte string
-     * @dev Test case:
-     * - Input: empty byte array
-     * - Expected: 0x80
-     */
-    function test_writeBytes_empty_succeeds() external pure {
-        assertEq(RLPWriter.writeBytes(hex""), hex"80");
-    }
-
-    /**
      * @notice Tests RLP encoding of single bytes from 0x00 to 0x7f
      * @dev Test case:
      * - Input: each byte from 0x00 to 0x7f
@@ -103,6 +93,16 @@ contract RLPWriter_writeBytes_Test is Test {
  * 3. Long strings (>55 bytes) - prefix with 0xb7 + length of length
  */
 contract RLPWriter_writeBytes_standard_Test is Test {
+    /**
+     * @notice Tests RLP encoding of an empty byte string
+     * @dev Test case:
+     * - Input: empty byte array
+     * - Expected: 0x80 (empty string)
+     */
+    function test_writeBytes_standard_empty_succeeds() external pure {
+        assertEq(RLPWriter.writeBytes(hex""), hex"80");
+    }
+
     /**
      * @notice Tests RLP encoding of a byte string containing 0x00
      * @dev Test case:
@@ -202,24 +202,24 @@ contract RLPWriter_writeList_Test is Test {
         // Create an array to hold RLP-encoded items (maximum 55 elements)
         // These are pre-encoded items that will be passed directly to writeList
         bytes[] memory payload = new bytes[](55);
-        
+
         // Bound the total available bytes between 1 and 54 to ensure we're testing short lists
         uint256 total_available_bytes = bound(_length, 1, 54);
-        
+
         // Track the current index in the payload array
         uint256 index = 0;
-        
+
         // Generate random RLP-encoded items until we've used up all available bytes
         while (total_available_bytes > 0) {
             // Generate a random number of bytes to use (between 0 and remaining bytes)
             uint256 randomNumber = vm.randomUint(0, total_available_bytes);
-            
+
             // Generate random bytes of that length
             bytes memory randomBytes = vm.randomBytes(randomNumber);
-            
+
             // Variable to hold the RLP encoding of the random bytes
             bytes memory encodedBytesInput;
-            
+
             // Apply RLP encoding rules:
             if (randomBytes.length == 0) {
                 // Case 1: Empty byte array - encode as 0x80
@@ -232,10 +232,10 @@ contract RLPWriter_writeList_Test is Test {
                 bytes memory lengthBytes = abi.encodePacked(bytes1(uint8(0x80 + randomBytes.length)));
                 encodedBytesInput = bytes.concat(lengthBytes, randomBytes);
             }
-            
+
             // Add the encoded item to our payload array
             payload[index] = encodedBytesInput;
-            
+
             // Only proceed if the encoded item fits within our remaining bytes
             if (encodedBytesInput.length <= total_available_bytes) {
                 // Subtract the length of the encoded item from our remaining bytes
@@ -250,7 +250,7 @@ contract RLPWriter_writeList_Test is Test {
         for (uint256 i = 0; i < index; i++) {
             finalPayload[i] = payload[i];
         }
-        
+
         // Create a variable to hold the concatenated RLP-encoded items
         bytes memory bytesPayload;
 
@@ -295,12 +295,10 @@ contract RLPWriter_writeList_Test is Test {
             if (_input[i].length == 0) {
                 // Case 1: Empty byte array - encode as 0x80
                 payload[i] = abi.encodePacked(bytes1(0x80));
-            } 
-            else if (_input[i].length == 1 && uint8(_input[i][0]) < 0x80) {
+            } else if (_input[i].length == 1 && uint8(_input[i][0]) < 0x80) {
                 // Case 2: Single byte < 0x80 - use the byte as is
                 payload[i] = abi.encodePacked(bytes1(_input[i][0]));
-            }
-            else if (_input[i].length <= 55) {
+            } else if (_input[i].length <= 55) {
                 // Case 3: Short string (0-55 bytes) - prefix with 0x80 + length
                 bytes memory lengthByte = abi.encodePacked(bytes1(uint8(0x80 + _input[i].length)));
                 bytes memory encodedInputElement = bytes.concat(lengthByte, _input[i]);
@@ -331,7 +329,7 @@ contract RLPWriter_writeList_Test is Test {
 
         // Create the prefix byte for the list: 0xf7 + length of the length bytes
         bytes memory payloadLengthLengthBytes = abi.encodePacked(bytes1(uint8(0xf7 + payloadLengthLength)));
-        
+
         // Construct the complete RLP encoding:
         // prefix + length bytes + concatenated payload
         bytes memory encodedInput = bytes.concat(payloadLengthLengthBytes, payloadLengthBytes, bytesPayload);
@@ -373,7 +371,7 @@ contract RLPWriter_writeList_standard_Test is Test {
         input[0] = hex"83646f67"; // RLP("dog")
         input[1] = hex"83676f64"; // RLP("god")
         input[2] = hex"83636174"; // RLP("cat")
-        
+
         assertEq(RLPWriter.writeList(input), hex"cc83646f6783676f6483636174");
     }
 
@@ -386,9 +384,9 @@ contract RLPWriter_writeList_standard_Test is Test {
     function test_writeList_mixedList_succeeds() external pure {
         bytes[] memory input = new bytes[](3);
         input[0] = hex"827a77"; // RLP("zw")
-        input[1] = hex"c104";   // RLP([4])
-        input[2] = hex"01";     // RLP(1)
-        
+        input[1] = hex"c104"; // RLP([4])
+        input[2] = hex"01"; // RLP(1)
+
         assertEq(RLPWriter.writeList(input), hex"c6827a77c10401");
     }
 
@@ -401,8 +399,8 @@ contract RLPWriter_writeList_standard_Test is Test {
     function test_writeList_nestedEmptyLists_succeeds() external pure {
         bytes[] memory outerList = new bytes[](2);
         outerList[0] = hex"c2c0c0"; // RLP([[], []])
-        outerList[1] = hex"c0";     // RLP([])
-        
+        outerList[1] = hex"c0"; // RLP([])
+
         assertEq(RLPWriter.writeList(outerList), hex"c4c2c0c0c0");
     }
 
@@ -414,10 +412,10 @@ contract RLPWriter_writeList_standard_Test is Test {
      */
     function test_writeList_complexNestedLists_succeeds() external pure {
         bytes[] memory finalList = new bytes[](3);
-        finalList[0] = hex"c0";     // RLP([])
-        finalList[1] = hex"c1c0";   // RLP([[]])
+        finalList[0] = hex"c0"; // RLP([])
+        finalList[1] = hex"c1c0"; // RLP([[]])
         finalList[2] = hex"c3c0c1c0"; // RLP([[], [[]]])
-        
+
         assertEq(RLPWriter.writeList(finalList), hex"c7c0c1c0c3c0c1c0");
     }
 
@@ -430,12 +428,14 @@ contract RLPWriter_writeList_standard_Test is Test {
     function test_writeList_keyValuePairs_succeeds() external pure {
         bytes[] memory input = new bytes[](4);
         bytes memory encodedPair = hex"c8846b65798476616c"; // RLP(["key", "val"])
-        
+
         input[0] = encodedPair;
         input[1] = encodedPair;
         input[2] = encodedPair;
         input[3] = encodedPair;
-        
-        assertEq(RLPWriter.writeList(input), hex"e4c8846b65798476616cc8846b65798476616cc8846b65798476616cc8846b65798476616c");
+
+        assertEq(
+            RLPWriter.writeList(input), hex"e4c8846b65798476616cc8846b65798476616cc8846b65798476616cc8846b65798476616c"
+        );
     }
 }
