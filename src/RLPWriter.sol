@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import {RLPHelpers} from "./utils/RLPHelpers.sol";
+import { RLPHelpers } from "./utils/RLPHelpers.sol";
 
 /**
  * @title RLPWriter
@@ -35,18 +35,18 @@ library RLPWriter {
         // Case: Empty byte array - encode as 0x80
         if (_input.length == 0) {
             output_ = abi.encodePacked(bytes1(0x80));
-        } 
+        }
         // Case: Single byte (0x00-0x7f) - use as is
         else if (_input.length == 1 && _input[0] < 0x80) {
             output_ = abi.encodePacked(bytes1(_input[0]));
-        } 
+        }
         // Case: Short string (0-55 bytes)
         else if (_input.length <= 55) {
             // Create prefix byte: 0x80 + length
             bytes memory lengthByte = abi.encodePacked(bytes1(uint8(0x80 + _input.length)));
             // Concatenate: prefix + actual data
             output_ = bytes.concat(lengthByte, _input);
-        } 
+        }
         // Case: Long string (>55 bytes)
         else {
             // Get number of bytes needed for length
@@ -82,14 +82,14 @@ library RLPWriter {
         // Case: Empty list - encode as 0xc0
         if (_input.length == 0) {
             output_ = abi.encodePacked(bytes1(0xc0));
-        } 
+        }
         // Case: Short list (total payload 0-55 bytes)
         else if (flattenedPayload.length <= 55) {
             // Create prefix byte: 0xc0 + length
             bytes memory lengthByte = abi.encodePacked(bytes1(uint8(0xc0 + flattenedPayload.length)));
             // Concatenate: prefix + flattened payload
             output_ = bytes.concat(lengthByte, flattenedPayload);
-        } 
+        }
         // Case: Long list (total payload >55 bytes)
         else {
             // Get number of bytes needed for payload length

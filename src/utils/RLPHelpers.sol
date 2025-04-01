@@ -40,7 +40,7 @@ library RLPHelpers {
 
         // Allocate array for significant bytes only
         bytes memory lengthBytes = new bytes(lengthLength);
-        
+
         // Assembly: shift and store only significant bytes
         assembly {
             // Skip 32-byte length prefix in memory layout
@@ -64,12 +64,12 @@ library RLPHelpers {
     function getFlattenedArray(bytes[] memory array) internal pure returns (bytes memory) {
         // Initialize empty bytes for concatenation
         bytes memory flattenedArray;
-        
+
         // Concatenate each RLP-encoded item in sequence
         for (uint256 i = 0; i < array.length; i++) {
             flattenedArray = abi.encodePacked(flattenedArray, array[i]);
         }
-        
+
         return flattenedArray;
     }
 
@@ -106,7 +106,7 @@ library RLPHelpers {
                 if (item.length > 1) {
                     revert("Invalid RLP item: incorrect length for short string");
                 }
-            } 
+            }
             // Validate: content length must match prefix-encoded length
             else if (item.length != length + 1) {
                 revert("Invalid RLP item: incorrect length for short string");
@@ -132,10 +132,10 @@ library RLPHelpers {
             if (item.length != lengthOfLength + length + 1) {
                 revert("Invalid RLP item: incorrect length for long string");
             }
-            
+
             return true;
         }
-        
+
         // Case: Lists (short: 0xc0-0xf7, long: 0xf8-0xff)
         if (firstByte >= 0xc0 && firstByte <= 0xff) {
             // Case: Short list (0-55 bytes)
@@ -144,7 +144,7 @@ library RLPHelpers {
                 // Validate: empty list must be exactly 0xc0
                 if (firstByte == 0xc0 && item.length > 1) {
                     revert("Invalid RLP: empty list should be encoded as 0xc0 only");
-                } 
+                }
                 // Validate: content length must match prefix-encoded length
                 else if (firstByte != 0xc0 && item.length != listLength + 1) {
                     revert("Invalid RLP: incorrect length for short list");
@@ -157,13 +157,13 @@ library RLPHelpers {
                 if (item.length < lengthOfLength + 1) {
                     revert("Invalid RLP: insufficient bytes for long list length");
                 }
-                
+
                 // Calculate actual list length from length bytes
                 uint256 listLength = 0;
                 for (uint256 i = 1; i <= lengthOfLength; i++) {
                     listLength = listLength * 256 + uint8(item[i]);
                 }
-                
+
                 // Validate: total length must match (prefix + length bytes + content)
                 if (item.length != 1 + lengthOfLength + listLength) {
                     revert("Invalid RLP: incorrect length for long list");

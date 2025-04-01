@@ -42,7 +42,15 @@ library RLPReader {
      * @param _lengthBytes Number of bytes used to encode the length
      * @return The calculated length value
      */
-    function _calculateLength(bytes memory _input, uint256 _startIndex, uint256 _lengthBytes) internal pure returns (uint256) {
+    function _calculateLength(
+        bytes memory _input,
+        uint256 _startIndex,
+        uint256 _lengthBytes
+    )
+        internal
+        pure
+        returns (uint256)
+    {
         uint256 length = 0;
         for (uint256 i = 0; i < _lengthBytes; i++) {
             length = length + (uint8(_input[_startIndex + i]) * 256 ** (_lengthBytes - 1 - i));
@@ -61,7 +69,15 @@ library RLPReader {
      * @param _length Number of bytes to copy
      * @return New bytes array with copied content
      */
-    function _copyBytes(bytes memory _input, uint256 _startIndex, uint256 _length) internal pure returns (bytes memory) {
+    function _copyBytes(
+        bytes memory _input,
+        uint256 _startIndex,
+        uint256 _length
+    )
+        internal
+        pure
+        returns (bytes memory)
+    {
         bytes memory output = new bytes(_length);
         for (uint256 i = 0; i < _length; i++) {
             output[i] = _input[_startIndex + i];
@@ -91,22 +107,26 @@ library RLPReader {
         uint256 _payloadIndex,
         uint8 _prefix,
         bool _isShortList
-    ) internal pure returns (bytes memory item, uint256 newIndex) {
+    )
+        internal
+        pure
+        returns (bytes memory item, uint256 newIndex)
+    {
         // Validate: long strings (>55 bytes) cannot be in short lists
         if (_isShortList && _prefix > 0xb7) {
             revert("Invalid RLP: short list cannot contain long string");
         }
-        
+
         if (_prefix <= 0xb7) {
             // Case: Short string (0-55 bytes)
             uint256 strLength = _prefix - 0x80; // Calculate length from prefix
             item = _copyBytes(_input, _payloadIndex + 1, strLength); // Copy string content
             newIndex = _payloadIndex + 1 + strLength; // Move index past this string
-        } 
-        else {
+        } else {
             // Case: Long string (>55 bytes)
             uint256 lengthBytesCount = _prefix - 0xb7; // Get number of bytes used to encode length
-            uint256 strLength = _calculateLength(_input, _payloadIndex + 1, lengthBytesCount); // Calculate actual length
+            uint256 strLength = _calculateLength(_input, _payloadIndex + 1, lengthBytesCount); // Calculate actual
+                // length
             item = _copyBytes(_input, _payloadIndex + 1 + lengthBytesCount, strLength); // Copy string content
             newIndex = _payloadIndex + 1 + lengthBytesCount + strLength; // Move index past this string
         }
@@ -134,7 +154,11 @@ library RLPReader {
         uint256 _payloadIndex,
         uint8 _prefix,
         bool _isShortList
-    ) internal pure returns (bytes memory item, uint256 newIndex) {
+    )
+        internal
+        pure
+        returns (bytes memory item, uint256 newIndex)
+    {
         // Validate: long lists (>55 bytes) cannot be in short lists
         if (_isShortList && _prefix > 0xf7) {
             revert("Invalid RLP: short list cannot contain long list");
@@ -145,14 +169,13 @@ library RLPReader {
 
         if (_prefix <= 0xf7) {
             // Case: Short list (0-55 bytes)
-            nestedLength = _prefix - 0xc0;  // Calculate payload length from prefix
-            prefixLength = 1;  // Short list has 1-byte prefix
-        } 
-        else {
+            nestedLength = _prefix - 0xc0; // Calculate payload length from prefix
+            prefixLength = 1; // Short list has 1-byte prefix
+        } else {
             // Case: Long list (>55 bytes)
-            uint256 lengthBytesCount = _prefix - 0xf7;  // Get number of bytes used to encode length
-            prefixLength = 1 + lengthBytesCount;  // Prefix + length bytes
-            nestedLength = _calculateLength(_input, _payloadIndex + 1, lengthBytesCount);  // Calculate actual length
+            uint256 lengthBytesCount = _prefix - 0xf7; // Get number of bytes used to encode length
+            prefixLength = 1 + lengthBytesCount; // Prefix + length bytes
+            nestedLength = _calculateLength(_input, _payloadIndex + 1, lengthBytesCount); // Calculate actual length
         }
 
         // Extract the nested list payload (without its prefix)
@@ -215,20 +238,20 @@ library RLPReader {
             // First pass: Count items by traversing the payload
             while (payloadIndex < payloadLength + 1) {
                 uint8 prefix = uint8(bytes1(_input[payloadIndex]));
-                
+
                 // Handle single bytes (0x00-0x7f)
                 if (prefix <= 0x7f) {
                     itemCount++;
                     payloadIndex += 1;
-                } 
+                }
                 // Handle strings (0x80-0xbf)
                 else if (prefix >= 0x80 && prefix <= 0xbf) {
-                    (,payloadIndex) = _decodeString(_input, payloadIndex, prefix, true);
+                    (, payloadIndex) = _decodeString(_input, payloadIndex, prefix, true);
                     itemCount++;
                 }
                 // Handle nested lists (0xc0-0xff)
                 else if (prefix >= 0xc0) {
-                    (,payloadIndex) = _decodeNestedList(_input, payloadIndex, prefix, true);
+                    (, payloadIndex) = _decodeNestedList(_input, payloadIndex, prefix, true);
                     itemCount++;
                 }
             }
@@ -240,18 +263,16 @@ library RLPReader {
             // Second pass: Decode each item
             for (uint256 i = 0; i < itemCount; i++) {
                 uint8 prefix = uint8(bytes1(_input[payloadIndex]));
-                
+
                 // Decode based on prefix type
                 if (prefix <= 0x7f) {
                     // Case: Single byte (0x00-0x7f) - used as is
                     output_[i] = _decodeSingleByte(_input[payloadIndex]);
                     payloadIndex += 1; // Move past this single byte
-                }
-                else if (prefix >= 0x80 && prefix <= 0xbf) {
+                } else if (prefix >= 0x80 && prefix <= 0xbf) {
                     // Case: String (0x80-0xbf) - short or long string format
                     (output_[i], payloadIndex) = _decodeString(_input, payloadIndex, prefix, true);
-                }
-                else if (prefix >= 0xc0) {
+                } else if (prefix >= 0xc0) {
                     // Case: Nested list (0xc0-0xff) - short or long list format
                     (output_[i], payloadIndex) = _decodeNestedList(_input, payloadIndex, prefix, true);
                 }
@@ -263,27 +284,25 @@ library RLPReader {
             uint256 listLengthLength = uint8(_input[0]) - 0xf7;
             uint256 payloadLength = _calculateLength(_input, 1, listLengthLength);
             uint256 payloadStartIndex = listLengthLength + 1;
-            
+
             uint256 itemCount = 0;
             uint256 payloadIndex = payloadStartIndex;
 
             // First pass: Count items in long list
             while (payloadIndex < payloadStartIndex + payloadLength) {
                 uint8 prefix = uint8(bytes1(_input[payloadIndex]));
-                
+
                 if (prefix <= 0x7f) {
                     // Case: Single byte (0x00-0x7f) - count and advance by 1
                     itemCount++;
                     payloadIndex += 1;
-                }
-                else if (prefix >= 0x80 && prefix <= 0xbf) {
+                } else if (prefix >= 0x80 && prefix <= 0xbf) {
                     // Case: String (0x80-0xbf) - decode and update position
-                    (,payloadIndex) = _decodeString(_input, payloadIndex, prefix, false);
+                    (, payloadIndex) = _decodeString(_input, payloadIndex, prefix, false);
                     itemCount++;
-                }
-                else if (prefix >= 0xc0) {
+                } else if (prefix >= 0xc0) {
                     // Case: Nested list (0xc0-0xff) - decode and update position
-                    (,payloadIndex) = _decodeNestedList(_input, payloadIndex, prefix, false);
+                    (, payloadIndex) = _decodeNestedList(_input, payloadIndex, prefix, false);
                     itemCount++;
                 }
             }
@@ -295,17 +314,15 @@ library RLPReader {
             // Second pass: Decode items in long list
             for (uint256 i = 0; i < itemCount; i++) {
                 uint8 prefix = uint8(bytes1(_input[payloadIndex])); // Extract prefix byte
-                
+
                 if (prefix <= 0x7f) {
                     // Case: Single byte (0x00-0x7f) - decode directly
                     output_[i] = _decodeSingleByte(_input[payloadIndex]);
                     payloadIndex += 1;
-                }
-                else if (prefix >= 0x80 && prefix <= 0xbf) {
+                } else if (prefix >= 0x80 && prefix <= 0xbf) {
                     // Case: String (0x80-0xbf) - decode string and update position
                     (output_[i], payloadIndex) = _decodeString(_input, payloadIndex, prefix, false);
-                }
-                else if (prefix >= 0xc0) {
+                } else if (prefix >= 0xc0) {
                     // Case: Nested list (0xc0-0xff) - decode nested list and update position
                     (output_[i], payloadIndex) = _decodeNestedList(_input, payloadIndex, prefix, false);
                 }
