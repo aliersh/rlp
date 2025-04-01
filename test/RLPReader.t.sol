@@ -29,16 +29,6 @@ contract RLPReader_readBytes_Test is Test {
     }
 
     /**
-     * @notice Tests RLP decoding of an empty byte array
-     * @dev Test case:
-     * - Input: 0x80 (RLP encoding of empty array)
-     * - Expected: empty bytes array
-     */
-    function test_readBytes_empty_succeeds() external pure {
-        assertEq(RLPReader.readBytes(hex"80"), hex"");
-    }
-
-    /**
      * @notice Fuzz test for RLP decoding of byte strings between 1 and 55 bytes
      * @dev Test case:
      * - Input: random bytes of length 1-55
@@ -79,7 +69,8 @@ contract RLPReader_readBytes_Test is Test {
 
     /**
      * @notice Tests RLP decoding of byte arrays with length > 55 bytes
-     * @dev For arrays > 55 bytes, RLP encoding is: 0xb7+length of length bytes, followed by length bytes, followed by data
+     * @dev For arrays > 55 bytes, RLP encoding is: 0xb7+length of length bytes, followed by length bytes, followed by
+     * data
      * @param _input Random bytes input to test decoding against
      */
     function testFuzz_readBytes_morethan55bytes_succeeds(bytes memory _input) external pure {
@@ -111,12 +102,12 @@ contract RLPReader_readBytes_Test is Test {
  */
 contract RLPReader_readBytes_standard_Test is Test {
     /**
-     * @notice Tests RLP decoding of an empty string
+     * @notice Tests RLP decoding of an empty byte array
      * @dev Test case:
-     * - Input: 0x80 (RLP encoded empty string)
-     * - Expected: "" (empty string)
+     * - Input: 0x80 (RLP encoding of empty array)
+     * - Expected: empty bytes array
      */
-    function test_readBytes_standard_emptystring_succeeds() external pure {
+    function test_readBytes_standard_empty_succeeds() external pure {
         assertEq(RLPReader.readBytes(hex"80"), hex"");
     }
 
@@ -168,7 +159,9 @@ contract RLPReader_readBytes_standard_Test is Test {
      */
     function test_readBytes_standard_shortstring2_succeeds() external pure {
         assertEq(
-            RLPReader.readBytes(hex"b74c6f72656d20697073756d20646f6c6f722073697420616d65742c20636f6e7365637465747572206164697069736963696e6720656c69"),
+            RLPReader.readBytes(
+                hex"b74c6f72656d20697073756d20646f6c6f722073697420616d65742c20636f6e7365637465747572206164697069736963696e6720656c69"
+            ),
             "Lorem ipsum dolor sit amet, consectetur adipisicing eli"
         );
     }
@@ -181,7 +174,9 @@ contract RLPReader_readBytes_standard_Test is Test {
      */
     function test_readBytes_standard_longstring_succeeds() external pure {
         assertEq(
-            RLPReader.readBytes(hex"b8384c6f72656d20697073756d20646f6c6f722073697420616d65742c20636f6e7365637465747572206164697069736963696e6720656c6974"),
+            RLPReader.readBytes(
+                hex"b8384c6f72656d20697073756d20646f6c6f722073697420616d65742c20636f6e7365637465747572206164697069736963696e6720656c6974"
+            ),
             "Lorem ipsum dolor sit amet, consectetur adipisicing elit"
         );
     }
@@ -196,16 +191,6 @@ contract RLPReader_readBytes_standard_Test is Test {
  * 3. Long list (>55 bytes) - remove 0xf7 + length of length prefix
  */
 contract RLPReader_readList_Test is Test {
-    /**
-     * @notice Tests RLP decoding of an empty list
-     * @dev Test case:
-     * - Input: 0xc0 (RLP encoded empty list)
-     * - Expected: empty bytes array
-     */
-    function testFuzz_readList_empty_succeeds() external pure {
-        assertEq(RLPReader.readList(hex"c0"), new bytes[](0));
-    }
-
     /**
      * @notice Fuzz test for RLP decoding of lists with payload 1-55 bytes
      * @dev Test case:
@@ -228,10 +213,10 @@ contract RLPReader_readList_Test is Test {
         while (total_available_bytes > 0) {
             // Generate a random number of bytes to use
             uint256 randomNumber = vm.randomUint(0, total_available_bytes);
-            
+
             // Generate random bytes of that length
             bytes memory randomBytes = vm.randomBytes(randomNumber);
-            
+
             // RLP encode the random bytes following encoding rules
             bytes memory encodedBytesInput;
             if (randomBytes.length == 0) {
@@ -356,7 +341,7 @@ contract RLPReader_readList_standard_Test is Test {
         expected[0] = "dog";
         expected[1] = "god";
         expected[2] = "cat";
-        
+
         assertEq(RLPReader.readList(hex"cc83646f6783676f6483636174"), expected);
     }
 
@@ -369,9 +354,9 @@ contract RLPReader_readList_standard_Test is Test {
     function test_readList_standard_mixedList_succeeds() external pure {
         bytes[] memory expected = new bytes[](3);
         expected[0] = "zw";
-        expected[1] = hex"04";  // Single-item list payload
-        expected[2] = hex"01";  // Single byte number
-        
+        expected[1] = hex"04"; // Single-item list payload
+        expected[2] = hex"01"; // Single byte number
+
         assertEq(RLPReader.readList(hex"c6827a77c10401"), expected);
     }
 
@@ -383,9 +368,9 @@ contract RLPReader_readList_standard_Test is Test {
      */
     function test_readList_standard_nestedEmptyLists_succeeds() external pure {
         bytes[] memory expected = new bytes[](2);
-        expected[0] = hex"c0c0";  // Encoded [[], []]
-        expected[1] = hex"";      // Empty list payload
-        
+        expected[0] = hex"c0c0"; // Encoded [[], []]
+        expected[1] = hex""; // Empty list payload
+
         assertEq(RLPReader.readList(hex"c4c2c0c0c0"), expected);
     }
 
@@ -397,10 +382,10 @@ contract RLPReader_readList_standard_Test is Test {
      */
     function test_readList_standard_complexNestedLists_succeeds() external pure {
         bytes[] memory expected = new bytes[](3);
-        expected[0] = hex"";      // Empty list payload
-        expected[1] = hex"c0";    // Encoded [[]]
+        expected[0] = hex""; // Empty list payload
+        expected[1] = hex"c0"; // Encoded [[]]
         expected[2] = hex"c0c1c0"; // Encoded [[], [[]]]
-        
+
         assertEq(RLPReader.readList(hex"c7c0c1c0c3c0c1c0"), expected);
     }
 
@@ -412,12 +397,12 @@ contract RLPReader_readList_standard_Test is Test {
      */
     function test_readList_standard_keyValuePairs_succeeds() external pure {
         bytes[] memory expected = new bytes[](4);
-        bytes memory kvPair = hex"846b65798476616c";  // Encoded ["key", "val"]
-        
-        for (uint i = 0; i < 4; i++) {
+        bytes memory kvPair = hex"846b65798476616c"; // Encoded ["key", "val"]
+
+        for (uint256 i = 0; i < 4; i++) {
             expected[i] = kvPair;
         }
-        
+
         assertEq(
             RLPReader.readList(hex"e4c8846b65798476616cc8846b65798476616cc8846b65798476616cc8846b65798476616c"),
             expected
