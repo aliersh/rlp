@@ -161,6 +161,11 @@ Run the tests with:
 $ forge test
 ```
 
+## Inspiration
+
+This implementation was inspired by the [Optimism contracts-bedrock RLP library](https://github.com/ethereum-optimism/optimism/tree/b1a413430428f31db6a96d077d0ae40ac94112a3/packages/contracts-bedrock/src/libraries/rlp).  
+Many of the design decisions and structure were guided by their open-source approach and clarity.
+
 ## References
 
 - [Ethereum Yellow Paper](https://ethereum.github.io/yellowpaper/paper.pdf)
